@@ -1,0 +1,18 @@
+fastapi>=0.104.0
+uvicorn>=0.24.0
+httpx>=0.25.0
+pydantic>=2.4.0
+python-multipart>=0.0.6 
+# 网页抓取工具依赖
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+html2text>=2020.1.16
+readability-lxml>=0.8.1
+chardet>=5.2.0
+lxml>=4.9.0
+requests-html>=0.10.0 
+# 消息提醒工具依赖 - 跨平台桌面通知
+plyer>=2.1.0  # 核心通知库，支持Windows/macOS/Linux
+pyobjus>=1.2.3; sys_platform == "darwin"  # macOS通知支持
+# Windows: 无需额外依赖，plyer内置支持Windows 10/11 Toast通知
+# Linux: 可能需要系统级依赖 libnotify-bin (Ubuntu/Debian: sudo apt-get install libnotify-bin) 

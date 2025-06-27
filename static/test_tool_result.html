@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工具调用结果样式测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">工具调用结果样式测试</h1>
+        
+        <!-- 普通AI消息 -->
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-3">普通AI消息</h2>
+            <div class="flex justify-start">
+                <div class="max-w-3xl rounded-lg p-4 shadow-sm bg-white border border-gray-200">
+                    <div class="flex items-start space-x-3">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100">
+                            <i class="fas fa-robot text-gray-600 text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-sm font-medium">AI助手</span>
+                                <span class="text-xs opacity-75">09:43</span>
+                            </div>
+                            <div class="prose prose-sm max-w-none">
+                                这是一个普通的AI回复消息，应该显示为白色背景。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 工具调用结果消息 - 换行格式 -->
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-3">工具调用结果消息（换行格式）</h2>
+            <div class="flex justify-start">
+                <div class="max-w-3xl rounded-lg p-4 shadow-sm bg-transparent border-0">
+                    <div class="flex items-start space-x-3">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100">
+                            <i class="fas fa-robot text-gray-600 text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-sm font-medium">AI助手</span>
+                                <span class="text-xs opacity-75">09:43</span>
+                            </div>
+                            <div class="prose prose-sm max-w-none">
+                                <div class="tool-execution-header bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-3 rounded-lg mb-3">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-cog mr-2"></i>
+                                        <span class="font-semibold">工具执行</span>
+                                    </div>
+                                    <div class="text-sm space-y-1">
+                                        <div><span class="opacity-90">函数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">calculate_factorial</code></div>
+                                        <div><span class="opacity-90">参数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">{'n': 5, 'factorial_type': 'basic'}</code></div>
+                                        <div><span class="opacity-90">耗时:</span> <span class="text-green-200">0.001秒</span></div>
+                                    </div>
+                                </div>
+                                <div class="tool-result">
+                                    <p><strong>计算结果如下：</strong></p>
+                                    <h2>📊 5! (基础阶乘)</h2>
+                                    <ul>
+                                        <li><strong>输入数字：</strong> 5</li>
+                                        <li><strong>阶乘类型：</strong> 基础阶乘 (basic)</li>
+                                        <li><strong>计算公式：</strong> 5! = 1 × 2 × 3 × 4 × 5</li>
+                                        <li><strong>计算结果：</strong> <strong>120</strong></li>
+                                        <li><strong>结果位数：</strong> 3 位数</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 工具调用结果消息 - 空格格式 -->
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-3">工具调用结果消息（空格格式）</h2>
+            <div class="flex justify-start">
+                <div class="max-w-3xl rounded-lg p-4 shadow-sm bg-transparent border-0">
+                    <div class="flex items-start space-x-3">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100">
+                            <i class="fas fa-robot text-gray-600 text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-sm font-medium">AI助手</span>
+                                <span class="text-xs opacity-75">09:43</span>
+                            </div>
+                            <div class="prose prose-sm max-w-none">
+                                <div class="tool-execution-header bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-3 rounded-lg mb-3">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-cog mr-2"></i>
+                                        <span class="font-semibold">工具执行</span>
+                                    </div>
+                                    <div class="text-sm space-y-1">
+                                        <div><span class="opacity-90">函数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">get_stock_price_and_technical_analysis</code></div>
+                                        <div><span class="opacity-90">参数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">{'stock_symbol': 'TSLA'}</code></div>
+                                        <div><span class="opacity-90">耗时:</span> <span class="text-green-200">0.000秒</span></div>
+                                    </div>
+                                </div>
+                                <div class="tool-result">
+                                    <p><strong>执行失败</strong></p>
+                                    <p>错误码: PARAMETER_ERROR</p>
+                                    <p>报错信息: 参数错误: get_technical_analysis() missing 1 required positional argument: 'symbol'</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- HTML转义测试 -->
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-3">HTML转义测试</h2>
+            <div class="flex justify-start">
+                <div class="max-w-3xl rounded-lg p-4 shadow-sm bg-transparent border-0">
+                    <div class="flex items-start space-x-3">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100">
+                            <i class="fas fa-robot text-gray-600 text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-sm font-medium">AI助手</span>
+                                <span class="text-xs opacity-75">09:43</span>
+                            </div>
+                            <div class="prose prose-sm max-w-none">
+                                <div class="tool-execution-header bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-3 rounded-lg mb-3">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-cog mr-2"></i>
+                                        <span class="font-semibold">工具执行</span>
+                                    </div>
+                                    <div class="text-sm space-y-1">
+                                        <div><span class="opacity-90">函数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">test_html_escape</code></div>
+                                        <div><span class="opacity-90">参数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">{'html': '&lt;script&gt;alert("test")&lt;/script&gt;'}</code></div>
+                                        <div><span class="opacity-90">耗时:</span> <span class="text-green-200">0.001秒</span></div>
+                                    </div>
+                                </div>
+                                <div class="tool-result">
+                                    <p>HTML标签已正确转义：&lt;script&gt;alert("test")&lt;/script&gt;</p>
+                                    <p>特殊字符测试：&amp; &lt; &gt; " '</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 用户消息 -->
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-3">用户消息</h2>
+            <div class="flex justify-end">
+                <div class="max-w-3xl rounded-lg p-4 shadow-sm bg-blue-600 text-white">
+                    <div class="flex items-start space-x-3">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-500">
+                            <i class="fas fa-user text-white text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-sm font-medium">你</span>
+                                <span class="text-xs opacity-75">09:42</span>
+                            </div>
+                            <div class="prose prose-sm max-w-none">
+                                calculate_factorial<br><br>
+                                {<br>
+                                "n": 5,<br>
+                                "factorial_type": "basic"<br>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-8 p-4 bg-blue-50 rounded-lg">
+            <h3 class="font-semibold text-blue-800 mb-2">修复说明</h3>
+            <div class="text-blue-700 text-sm space-y-2">
+                <p><strong>问题解决：</strong></p>
+                <ul class="list-disc list-inside space-y-1">
+                    <li><strong>历史对话显示：</strong>支持两种工具调用结果格式（换行分隔和空格分隔）</li>
+                    <li><strong>HTML标签转义：</strong>自动转义 &lt; &gt; &amp; 等特殊字符，防止HTML注入</li>
+                    <li><strong>紫色样式：</strong>工具调用结果显示为紫色渐变背景，区别于普通AI回复</li>
+                    <li><strong>容器透明：</strong>工具调用结果的外层容器使用透明背景，让内部紫色样式正确显示</li>
+                </ul>
+                <p><strong>支持格式：</strong></p>
+                <ul class="list-disc list-inside space-y-1">
+                    <li>换行格式：函数名: xxx\n参数: xxx\n执行时间: xxx</li>
+                    <li>空格格式：函数名: xxx 参数: xxx 执行时间: xxx</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

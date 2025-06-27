@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid 测试页面</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
+    <style>
+        .mermaid-container {
+            position: relative;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            overflow: auto;
+        }
+        
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100px;
+        }
+        
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .mermaid-toolbar {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .mermaid-container:hover .mermaid-toolbar {
+            opacity: 1;
+        }
+        
+        .mermaid-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .mermaid-btn:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Mermaid 图表测试</h1>
+        
+        <!-- 流程图示例 -->
+        <div class="mermaid-container" id="container-test1">
+            <div class="mermaid-toolbar">
+                <button class="mermaid-btn" onclick="downloadMermaidSVG('test1')">
+                    SVG
+                </button>
+                <button class="mermaid-btn" onclick="showPngSizeDialog('test1')">
+                    PNG
+                </button>
+            </div>
+            <div class="mermaid" id="test1">
+                graph TD
+                    A[开始] --> B{判断条件}
+                    B -->|是| C[执行操作A]
+                    B -->|否| D[执行操作B]
+                    C --> E[结束]
+                    D --> E
+            </div>
+        </div>
+        
+        <!-- 时序图示例 -->
+        <div class="mermaid-container" id="container-test2">
+            <div class="mermaid-toolbar">
+                <button class="mermaid-btn" onclick="downloadMermaidSVG('test2')">
+                    SVG
+                </button>
+                <button class="mermaid-btn" onclick="showPngSizeDialog('test2')">
+                    PNG
+                </button>
+            </div>
+            <div class="mermaid" id="test2">
+                sequenceDiagram
+                    participant 用户
+                    participant 前端
+                    participant 后端
+                    participant 数据库
+                    
+                    用户->>前端: 发送请求
+                    前端->>后端: 转发请求
+                    后端->>数据库: 查询数据
+                    数据库-->>后端: 返回数据
+                    后端-->>前端: 返回结果
+                    前端-->>用户: 显示结果
+            </div>
+        </div>
+        
+        <!-- 饼图示例 -->
+        <div class="mermaid-container" id="container-test3">
+            <div class="mermaid-toolbar">
+                <button class="mermaid-btn" onclick="downloadMermaidSVG('test3')">
+                    SVG
+                </button>
+                <button class="mermaid-btn" onclick="showPngSizeDialog('test3')">
+                    PNG
+                </button>
+            </div>
+            <div class="mermaid" id="test3">
+                pie title 编程语言使用比例
+                    "JavaScript" : 35
+                    "Python" : 30
+                    "Java" : 20
+                    "Go" : 10
+                    "其他" : 5
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化 Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            themeVariables: {
+                primaryColor: '#3b82f6',
+                primaryTextColor: '#1f2937',
+                primaryBorderColor: '#2563eb',
+                lineColor: '#6b7280'
+            }
+        });
+
+        // 下载 SVG 功能
+        function downloadMermaidSVG(mermaidId) {
+            const mermaidElement = document.getElementById(mermaidId);
+            if (!mermaidElement) {
+                alert('未找到图表元素');
+                return;
+            }
+            
+            const svgElement = mermaidElement.querySelector('svg');
+            if (!svgElement) {
+                alert('未找到SVG元素');
+                return;
+            }
+            
+            try {
+                const svgData = new XMLSerializer().serializeToString(svgElement);
+                const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+                const svgUrl = URL.createObjectURL(svgBlob);
+                
+                const downloadLink = document.createElement('a');
+                downloadLink.href = svgUrl;
+                downloadLink.download = `mermaid_diagram_${mermaidId}_${new Date().toISOString().replace(/[:.]/g, '-')}.svg`;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                setTimeout(() => {
+                    URL.revokeObjectURL(svgUrl);
+                }, 100);
+                
+                alert('SVG下载成功');
+            } catch (error) {
+                console.error('SVG下载失败:', error);
+                alert('SVG下载失败: ' + error.message);
+            }
+        }
+
+        // PNG 对话框功能
+        function showPngSizeDialog(mermaidId) {
+            const mermaidElement = document.getElementById(mermaidId);
+            if (!mermaidElement) {
+                alert('未找到图表元素');
+                return;
+            }
+            
+            const svgElement = mermaidElement.querySelector('svg');
+            if (!svgElement) {
+                alert('未找到SVG元素');
+                return;
+            }
+            
+            const defaultWidth = 1920;
+            const defaultHeight = 1080;
+            
+            const dialog = document.createElement('div');
+            dialog.className = 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50';
+            dialog.innerHTML = `
+                <div class="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                    <h3 class="text-lg font-medium mb-4">设置PNG导出尺寸</h3>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">宽度 (像素)</label>
+                        <input type="number" id="png-width" class="w-full p-2 border rounded" value="${defaultWidth}" min="100" max="8192">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">高度 (像素)</label>
+                        <input type="number" id="png-height" class="w-full p-2 border rounded" value="${defaultHeight}" min="100" max="8192">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button onclick="closePngDialog()" class="px-4 py-2 border rounded hover:bg-gray-100">取消</button>
+                        <button onclick="downloadPNG('${mermaidId}')" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">下载</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+        }
+
+        function closePngDialog() {
+            const dialog = document.querySelector('.fixed.inset-0');
+            if (dialog) {
+                document.body.removeChild(dialog);
+            }
+        }
+
+        function downloadPNG(mermaidId) {
+            const width = parseInt(document.getElementById('png-width').value);
+            const height = parseInt(document.getElementById('png-height').value);
+            
+            if (isNaN(width) || isNaN(height) || width < 100 || height < 100) {
+                alert('请输入有效的尺寸（至少100像素）');
+                return;
+            }
+            
+            const mermaidElement = document.getElementById(mermaidId);
+            const svgElement = mermaidElement.querySelector('svg');
+            
+            try {
+                const svgData = new XMLSerializer().serializeToString(svgElement);
+                const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+                const svgUrl = URL.createObjectURL(svgBlob);
+                
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    canvas.toBlob(function(blob) {
+                        const pngUrl = URL.createObjectURL(blob);
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = pngUrl;
+                        downloadLink.download = `mermaid_diagram_${mermaidId}_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        document.body.removeChild(downloadLink);
+                        
+                        URL.revokeObjectURL(pngUrl);
+                        URL.revokeObjectURL(svgUrl);
+                        
+                        alert('PNG下载成功');
+                        closePngDialog();
+                    }, 'image/png');
+                };
+                
+                img.onerror = function() {
+                    alert('无法加载SVG图像');
+                    URL.revokeObjectURL(svgUrl);
+                };
+                
+                img.src = svgUrl;
+                
+            } catch (error) {
+                console.error('PNG下载失败:', error);
+                alert('PNG下载失败: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html> 

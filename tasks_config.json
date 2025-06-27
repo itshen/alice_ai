@@ -1,0 +1,62 @@
+{
+  "tasks": {
+    "example_morning_chat": {
+      "id": "example_morning_chat",
+      "name": "每日早晨问候",
+      "description": "每天早上9点执行的示例问候任务",
+      "enabled": false,
+      "schedule": {
+        "type": "cron",
+        "cron": "0 9 * * 1-5",
+        "timezone": "Asia/Shanghai"
+      },
+      "execution": {
+        "prompt": "早上好！今天是新的一天，有什么计划吗？请帮我总结一下今天可能需要关注的重要事项。",
+        "model_provider": "ollama",
+        "tools": []
+      },
+      "actions": {
+        "save_response": true,
+        "send_notification": false,
+        "log_execution": true
+      },
+      "created_at": "2025-01-10T10:00:00Z",
+      "updated_at": "2025-01-10T10:00:00Z",
+      "last_run": null,
+      "next_run": null
+    },
+    "example_hourly_check": {
+      "id": "example_hourly_check",
+      "name": "每小时系统检查",
+      "description": "每小时执行一次的系统状态检查",
+      "enabled": false,
+      "schedule": {
+        "type": "interval",
+        "hours": 1,
+        "timezone": "Asia/Shanghai"
+      },
+      "execution": {
+        "prompt": "请帮我检查系统状态，包括当前时间、可用工具模块等信息。",
+        "tools": []
+      },
+      "actions": {
+        "save_response": false,
+        "send_notification": false,
+        "log_execution": true
+      },
+      "created_at": "2025-01-10T10:00:00Z",
+      "updated_at": "2025-01-10T10:00:00Z",
+      "last_run": null,
+      "next_run": null
+    }
+  },
+  "global_settings": {
+    "max_concurrent_tasks": 3,
+    "task_timeout": 1800,
+    "retry_failed_tasks": true,
+    "max_retries": 3,
+    "log_level": "INFO",
+    "default_max_turns": 20,
+    "task_max_turns": 50
+  }
+}

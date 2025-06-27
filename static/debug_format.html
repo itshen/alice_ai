@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>格式化调试工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 工具执行头部样式 - 强制紫色 */
+        .tool-execution-header {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%) !important;
+            color: white !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            margin: 8px 0 12px 0 !important;
+        }
+        
+        /* 工具返回结果样式 */
+        .tool-result {
+            background: white !important;
+            border: 2px solid #e5e7eb !important;
+            border-left: 4px solid #8b5cf6 !important;
+            border-radius: 8px !important;
+            padding: 16px !important;
+            margin: 8px 0 !important;
+            position: relative !important;
+        }
+        
+        .tool-result::before {
+            content: "📋 返回结果";
+            position: absolute;
+            top: -10px;
+            left: 12px;
+            background: #8b5cf6;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        /* 工具结果内的特殊元素样式 */
+        .tool-result .result-item {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .tool-result .result-separator {
+            border-top: 2px dashed #9ca3af;
+            margin: 16px 0;
+            position: relative;
+        }
+        
+        .tool-result .result-separator::after {
+            content: "• • •";
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 0 8px;
+            color: #9ca3af;
+            font-weight: bold;
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 8px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-8">
+    <div x-data="debugApp()" class="max-w-6xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">消息格式化调试工具</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 输入区域 -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-lg font-semibold mb-4">输入测试文本</h2>
+                <textarea x-model="inputText" 
+                          class="w-full h-64 p-3 border border-gray-300 rounded-lg font-mono text-sm"
+                          placeholder="粘贴工具调用结果文本..."></textarea>
+                
+                <div class="mt-4 space-y-2">
+                    <button @click="loadSample1()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        加载示例1 (换行格式)
+                    </button>
+                    <button @click="loadSample2()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        加载示例2 (空格格式)
+                    </button>
+                    <button @click="inputText = ''" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
+                        清空
+                    </button>
+                </div>
+                
+                <!-- 检测结果 -->
+                <div class="mt-4 p-3 bg-gray-100 rounded">
+                    <h3 class="font-medium mb-2">检测结果:</h3>
+                    <div class="text-sm space-y-1">
+                        <div><strong>是否匹配工具调用格式:</strong> <span x-text="isToolCall ? '是' : '否'" :class="isToolCall ? 'text-green-600' : 'text-red-600'"></span></div>
+                        <div><strong>容器样式:</strong> <span x-text="containerClass"></span></div>
+                        <div x-show="matchDetails"><strong>匹配详情:</strong> <span x-text="matchDetails"></span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 预览区域 -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-lg font-semibold mb-4">格式化预览</h2>
+                
+                <!-- 模拟消息容器 -->
+                <div class="flex justify-start">
+                    <div :class="containerClass" class="max-w-full rounded-lg p-4 shadow-sm">
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-robot text-gray-600 text-sm"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <span class="text-sm font-medium">Alice </span>
+                                    <span class="text-xs opacity-75">调试模式</span>
+                                </div>
+                                <div class="prose prose-sm max-w-none" x-html="formattedContent"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 原始HTML -->
+                <div class="mt-6">
+                    <h3 class="font-medium mb-2">生成的HTML:</h3>
+                    <pre class="bg-gray-100 p-3 rounded text-xs overflow-x-auto" x-text="formattedContent"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function debugApp() {
+            return {
+                inputText: '',
+                
+                get isToolCall() {
+                    const toolResultPattern = /<TOOL_RESULT>\s*([\s\S]*?)\s*<\/TOOL_RESULT>/;
+                    const toolCallPattern1 = /^函数名:\s*(.+?)\n参数:\s*(.+?)\n执行时间:\s*(.+?)(?:\n|$)/;
+                    const toolCallPattern2 = /^函数名:\s*(.+?)\s+参数:\s*(.+?)\s+执行时间:\s*(.+?)(?:\n|$)/;
+                    return toolResultPattern.test(this.inputText) || toolCallPattern1.test(this.inputText) || toolCallPattern2.test(this.inputText);
+                },
+                
+                get containerClass() {
+                    if (this.isToolCall) {
+                        return 'bg-transparent border-0';
+                    }
+                    return 'bg-white border border-gray-200';
+                },
+                
+                get matchDetails() {
+                    const toolResultPattern = /<TOOL_RESULT>\s*([\s\S]*?)\s*<\/TOOL_RESULT>/;
+                    const toolCallPattern1 = /^函数名:\s*(.+?)\n参数:\s*(.+?)\n执行时间:\s*(.+?)(?:\n|$)/;
+                    const toolCallPattern2 = /^函数名:\s*(.+?)\s+参数:\s*(.+?)\s+执行时间:\s*(.+?)(?:\n|$)/;
+                    
+                    let match = this.inputText.match(toolResultPattern);
+                    if (match) {
+                        const toolResultContent = match[1].trim();
+                        const functionMatch = toolResultContent.match(/^函数名:\s*(.+?)$/m);
+                        const paramMatch = toolResultContent.match(/^参数:\s*(.+?)$/m);
+                        const timeMatch = toolResultContent.match(/^执行时间:\s*(.+?)$/m);
+                        
+                        if (functionMatch && paramMatch && timeMatch) {
+                            return `TOOL_RESULT格式匹配 - 函数: ${functionMatch[1]}, 参数: ${paramMatch[1]}, 时间: ${timeMatch[1]}`;
+                        }
+                        return 'TOOL_RESULT格式匹配但解析失败';
+                    }
+                    
+                    match = this.inputText.match(toolCallPattern1);
+                    if (match) {
+                        return `换行格式匹配 - 函数: ${match[1]}, 参数: ${match[2]}, 时间: ${match[3]}`;
+                    }
+                    
+                    match = this.inputText.match(toolCallPattern2);
+                    if (match) {
+                        return `空格格式匹配 - 函数: ${match[1]}, 参数: ${match[2]}, 时间: ${match[3]}`;
+                    }
+                    
+                    return '';
+                },
+                
+                get formattedContent() {
+                    return this.formatMessage(this.inputText);
+                },
+                
+                loadSample1() {
+                    this.inputText = `<TOOL_RESULT>
+函数名: find_user_memories
+参数: {'keyword': '金山办公', 'limit': 10}
+执行时间: 0.002秒
+返回值: 🔍 搜索结果 (关键词: '金山办公', 找到 2 条)
+==================================================
+
+🆔 ID: 3
+📅 时间: 2025-06-11 11:32:56
+📂 类别: user_preference
+🏷️  标签: 投资分析, 股票推荐
+📝 内容: **金山办公**（SH688111）的最新股价为278.43元，技术指标显示短期偏弱但长期趋势存在机会。
+</TOOL_RESULT>`;
+                },
+                
+                loadSample2() {
+                    this.inputText = `函数名: get_weather 参数: {"city": "北京"} 执行时间: 1.2秒
+今天北京天气晴朗，温度25°C，适合外出活动。`;
+                },
+                
+                formatMessage(content) {
+                    if (!content) return '';
+                    
+                    // 检查是否是 <TOOL_RESULT> 格式的工具调用结果
+                    const toolResultPattern = /<TOOL_RESULT>\s*([\s\S]*?)\s*<\/TOOL_RESULT>/;
+                    const toolResultMatch = content.match(toolResultPattern);
+                    
+                    if (toolResultMatch) {
+                        const toolResultContent = toolResultMatch[1].trim();
+                        
+                        // 解析工具结果内容
+                        const functionMatch = toolResultContent.match(/^函数名:\s*(.+?)$/m);
+                        const paramMatch = toolResultContent.match(/^参数:\s*(.+?)$/m);
+                        const timeMatch = toolResultContent.match(/^执行时间:\s*(.+?)$/m);
+                        
+                        if (functionMatch && paramMatch && timeMatch) {
+                            const functionName = this.escapeHtml(functionMatch[1].trim());
+                            const parameters = this.escapeHtml(paramMatch[1].trim());
+                            const executionTime = this.escapeHtml(timeMatch[1].trim());
+                            
+                            // 获取返回值部分（去掉函数名、参数、执行时间行）
+                            let remainingContent = toolResultContent
+                                .replace(/^函数名:\s*(.+?)$/m, '')
+                                .replace(/^参数:\s*(.+?)$/m, '')
+                                .replace(/^执行时间:\s*(.+?)$/m, '')
+                                .trim();
+                            
+                            return `
+                                <div class="tool-execution-header">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-cog mr-2"></i>
+                                        <span class="font-semibold">工具执行</span>
+                                    </div>
+                                    <div class="text-sm space-y-1">
+                                        <div><span class="opacity-90">函数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">${functionName}</code></div>
+                                        <div><span class="opacity-90">参数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">${parameters}</code></div>
+                                        <div><span class="opacity-90">耗时:</span> <span class="text-green-200">${executionTime}</span></div>
+                                    </div>
+                                </div>
+                                ${remainingContent ? '<div class="tool-result">' + this.formatRegularContent(remainingContent) + '</div>' : ''}
+                            `;
+                        }
+                    }
+                    
+                    // 检查是否是旧格式的工具调用结果（以"函数名:"开头）
+                    // 支持两种格式：换行分隔和空格分隔
+                    const toolCallPattern1 = /^函数名:\s*(.+?)\n参数:\s*(.+?)\n执行时间:\s*(.+?)(?:\n|$)/;
+                    const toolCallPattern2 = /^函数名:\s*(.+?)\s+参数:\s*(.+?)\s+执行时间:\s*(.+?)(?:\n|$)/;
+                    
+                    let match = content.match(toolCallPattern1) || content.match(toolCallPattern2);
+                    
+                    if (match) {
+                        const functionName = this.escapeHtml(match[1].trim());
+                        const parameters = this.escapeHtml(match[2].trim());
+                        const executionTime = this.escapeHtml(match[3].trim());
+                        
+                        // 获取剩余内容（工具执行结果）
+                        const remainingContent = content.replace(match[0], '').trim();
+                        
+                        return `
+                            <div class="tool-execution-header">
+                                <div class="flex items-center mb-2">
+                                    <i class="fas fa-cog mr-2"></i>
+                                    <span class="font-semibold">工具执行</span>
+                                </div>
+                                <div class="text-sm space-y-1">
+                                    <div><span class="opacity-90">函数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">${functionName}</code></div>
+                                    <div><span class="opacity-90">参数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">${parameters}</code></div>
+                                    <div><span class="opacity-90">耗时:</span> <span class="text-green-200">${executionTime}</span></div>
+                                </div>
+                            </div>
+                            ${remainingContent ? '<div class="tool-result">' + this.formatRegularContent(remainingContent) + '</div>' : ''}
+                        `;
+                    }
+                    
+                    return this.formatRegularContent(content);
+                },
+                
+                formatRegularContent(content) {
+                    if (!content) return '';
+                    
+                    // 先转义HTML特殊字符（但保留已有的HTML标签）
+                    content = this.escapeHtml(content);
+                    
+                    // 处理工具返回结果的特殊格式
+                    content = this.formatToolResultContent(content);
+                    
+                    // 处理代码块
+                    content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, '<div class="code-block"><pre><code>$2</code></pre></div>');
+                    
+                    // 处理行内代码
+                    content = content.replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-sm">$1</code>');
+                    
+                    // 处理工具调用
+                    content = content.replace(/\[工具调用: ([^\]]+)\]/g, '<div class="tool-call"><i class="fas fa-tools mr-2"></i>工具调用: $1</div>');
+                    
+                    // 处理换行
+                    content = content.replace(/\n/g, '<br>');
+                    
+                    // 处理链接
+                    content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-600 hover:underline">$1</a>');
+                    
+                    return content;
+                },
+                
+                formatToolResultContent(content) {
+                    if (!content) return '';
+                    
+                    // 处理分隔线 (=== 或 ---)
+                    content = content.replace(/^={10,}$/gm, '<div class="result-separator"></div>');
+                    content = content.replace(/^-{10,}$/gm, '<div class="result-separator"></div>');
+                    
+                    // 处理ID项目 (🆔 ID: 数字)
+                    content = content.replace(/^🆔 ID: (\d+)$/gm, '<div class="result-item"><div class="flex items-center mb-2"><span class="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-semibold">🆔 ID: $1</span></div>');
+                    
+                    // 处理时间 (📅 时间:)
+                    content = content.replace(/^📅 时间: (.+)$/gm, '<div class="flex items-center text-sm text-gray-600 mb-1"><i class="fas fa-calendar-alt mr-2 text-blue-500"></i><span>$1</span></div>');
+                    
+                    // 处理类别 (📂 类别:)
+                    content = content.replace(/^📂 类别: (.+)$/gm, '<div class="flex items-center text-sm text-gray-600 mb-1"><i class="fas fa-folder mr-2 text-green-500"></i><span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">$1</span></div>');
+                    
+                    // 处理标签 (🏷️ 标签:)
+                    content = content.replace(/^🏷️\s*标签: (.+)$/gm, (match, tags) => {
+                        const tagList = tags.split(',').map(tag => tag.trim());
+                        const tagHtml = tagList.map(tag => `<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs mr-1">${tag}</span>`).join('');
+                        return `<div class="flex items-center text-sm mb-2"><i class="fas fa-tags mr-2 text-orange-500"></i>${tagHtml}</div>`;
+                    });
+                    
+                    // 处理内容 (📝 内容:)
+                    content = content.replace(/^📝 内容: (.+)$/gm, '<div class="mt-2"><div class="flex items-center text-sm font-medium text-gray-700 mb-2"><i class="fas fa-file-text mr-2 text-indigo-500"></i>内容</div><div class="bg-gray-50 p-3 rounded border-l-4 border-indigo-400">$1</div></div>');
+                    
+                    // 处理搜索结果标题 (🔍 搜索结果)
+                    content = content.replace(/^返回值: 🔍 搜索结果 \((.+?)\)$/gm, '<div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-200 mb-4"><div class="flex items-center"><i class="fas fa-search mr-2 text-blue-600"></i><span class="font-semibold text-blue-800">搜索结果</span></div><div class="text-sm text-blue-600 mt-1">$1</div></div>');
+                    
+                    // 处理其他返回值格式
+                    content = content.replace(/^返回值: (.+)$/gm, '<div class="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200 mb-4"><div class="flex items-center"><i class="fas fa-check-circle mr-2 text-green-600"></i><span class="font-semibold text-green-800">执行结果</span></div><div class="text-sm text-green-700 mt-1">$1</div></div>');
+                    
+                    // 关闭未闭合的result-item div
+                    const openDivs = (content.match(/<div class="result-item">/g) || []).length;
+                    const closeDivs = (content.match(/<\/div>/g) || []).length;
+                    const unclosedDivs = openDivs - closeDivs;
+                    
+                    for (let i = 0; i < unclosedDivs; i++) {
+                        content += '</div>';
+                    }
+                    
+                    return content;
+                },
+                
+                escapeHtml(text) {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                }
+            }
+        }
+    </script>
+</body>
+</html> 

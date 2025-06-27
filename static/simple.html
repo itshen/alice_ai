@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alice - 简化版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        .message-enter {
+            animation: slideInUp 0.3s ease-out;
+        }
+        
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .typing-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #3b82f6;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 8px 0;
+            overflow-x: auto;
+        }
+        
+        .tool-call {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+        }
+        
+        .hidden { display: none; }
+        .active-tab { background-color: #dbeafe; color: #2563eb; border-bottom: 2px solid #2563eb; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <div class="flex h-screen">
+        <!-- 侧边栏 -->
+        <div class="w-80 bg-white shadow-lg flex flex-col">
+            <!-- 头部 -->
+            <div class="p-4 border-b border-gray-200">
+                <h1 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-robot mr-2 text-blue-600"></i>
+                    Alice
+                </h1>
+                <p class="text-sm text-gray-600 mt-1">智能工具调用框架</p>
+            </div>
+            
+            <!-- 标签页 -->
+            <div class="flex border-b border-gray-200">
+                <button onclick="switchTab('sessions')" id="tab-sessions" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 active-tab">
+                    <i class="fas fa-comments mr-1"></i>会话
+                </button>
+                <button onclick="switchTab('tools')" id="tab-tools" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-tools mr-1"></i>工具
+                </button>
+                <button onclick="switchTab('models')" id="tab-models" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-brain mr-1"></i>模型
+                </button>
+            </div>
+            
+            <!-- 会话列表 -->
+            <div id="sessions-panel" class="flex-1 overflow-y-auto custom-scrollbar">
+                <div class="p-4">
+                    <button onclick="createNewSession()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mb-4">
+                        <i class="fas fa-plus mr-2"></i>新建会话
+                    </button>
+                    
+                    <div id="sessions-list" class="space-y-2">
+                        <!-- 会话列表将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 工具管理 -->
+            <div id="tools-panel" class="flex-1 overflow-y-auto custom-scrollbar hidden">
+                <div class="p-4">
+                    <div class="mb-4">
+                        <h3 class="font-medium text-gray-800 mb-2">工具模块</h3>
+                        <div id="tool-modules-list" class="space-y-2">
+                            <!-- 工具模块列表将在这里动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-medium text-gray-800 mb-2">可用工具</h3>
+                        <div id="available-tools-list" class="space-y-1">
+                            <!-- 可用工具列表将在这里动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 模型管理 -->
+            <div id="models-panel" class="flex-1 overflow-y-auto custom-scrollbar hidden">
+                <div class="p-4">
+                    <div class="mb-4">
+                        <h3 class="font-medium text-gray-800 mb-2">当前模型</h3>
+                        <div id="current-model-info" class="p-3 bg-blue-50 rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-brain text-blue-600 mr-2"></i>
+                                <span class="font-medium" id="current-provider">加载中...</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1" id="current-model">加载中...</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-medium text-gray-800 mb-2">可用模型</h3>
+                        <div id="available-models-list" class="space-y-2">
+                            <!-- 可用模型列表将在这里动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 主聊天区域 -->
+        <div class="flex-1 flex flex-col">
+            <!-- 聊天头部 -->
+            <div class="bg-white border-b border-gray-200 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="font-semibold text-gray-800" id="session-title">选择或创建一个会话开始与Alice对话</h2>
+                        <p class="text-sm text-gray-600">
+                            <span id="header-provider">-</span> - <span id="header-model">-</span>
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="clearChat()" class="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50">
+                            <i class="fas fa-broom mr-1"></i>清空
+                        </button>
+                        <button onclick="exportChat()" class="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50">
+                            <i class="fas fa-download mr-1"></i>导出
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 消息区域 -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4" id="messages-container">
+                <!-- 消息将在这里动态生成 -->
+            </div>
+            
+            <!-- 输入区域 -->
+            <div class="bg-white border-t border-gray-200 p-4">
+                <div class="flex items-end space-x-4">
+                    <div class="flex-1">
+                        <textarea id="message-input" 
+                                  placeholder="输入你的消息... (Shift+Enter换行，Enter发送)"
+                                  class="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  rows="3"></textarea>
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <button onclick="sendMessage()" id="send-button"
+                                class="px-6 py-3 text-white rounded-lg transition-colors bg-blue-600 hover:bg-blue-700">
+                            <i class="fas fa-paper-plane mr-2"></i>发送
+                        </button>
+                        <button onclick="toggleStream()" id="stream-button"
+                                class="px-4 py-2 text-white text-sm rounded-lg hover:opacity-90 transition-opacity bg-green-600">
+                            <i class="fas fa-stream mr-1"></i>
+                            <span>流式</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let state = {
+            activeTab: 'sessions',
+            currentSessionId: null,
+            currentSessionTitle: '',
+            messages: [],
+            sessions: [],
+            toolModules: [],
+            availableTools: [],
+            availableModels: {},
+            currentModel: { provider: '', model: '' },
+            isLoading: false,
+            streamMode: true
+        };
+
+        // API调用函数
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`http://localhost:8000${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API调用失败:', error);
+                showNotification('API调用失败: ' + error.message, 'error');
+                throw error;
+            }
+        }
+
+        // 标签页切换
+        function switchTab(tabName) {
+            // 更新标签页状态
+            state.activeTab = tabName;
+            
+            // 更新标签按钮样式
+            document.querySelectorAll('[id^="tab-"]').forEach(tab => {
+                tab.classList.remove('active-tab');
+                tab.classList.add('text-gray-600', 'hover:text-gray-800');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active-tab');
+            
+            // 显示/隐藏面板
+            document.querySelectorAll('[id$="-panel"]').forEach(panel => {
+                panel.classList.add('hidden');
+            });
+            document.getElementById(`${tabName}-panel`).classList.remove('hidden');
+        }
+
+        // 会话管理
+        async function loadSessions() {
+            try {
+                const response = await apiCall('/sessions');
+                state.sessions = response.sessions || [];
+                renderSessions();
+            } catch (error) {
+                console.error('加载会话失败:', error);
+            }
+        }
+
+        function renderSessions() {
+            const container = document.getElementById('sessions-list');
+            container.innerHTML = '';
+            
+            state.sessions.forEach(session => {
+                const sessionElement = document.createElement('div');
+                sessionElement.className = `p-3 border border-gray-200 rounded-lg cursor-pointer transition-colors ${
+                    state.currentSessionId === session.id ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50'
+                }`;
+                sessionElement.onclick = () => loadSession(session.id);
+                
+                sessionElement.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-medium text-gray-800 truncate">${session.title}</h3>
+                            <p class="text-xs text-gray-500 mt-1">${formatDate(session.updated_at || session.created_at)}</p>
+                        </div>
+                        <button onclick="event.stopPropagation(); deleteSession('${session.id}')" 
+                                class="text-gray-400 hover:text-red-500 ml-2">
+                            <i class="fas fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(sessionElement);
+            });
+        }
+
+        async function createNewSession() {
+            const title = prompt('请输入会话标题:', '新对话');
+            if (!title) return;
+            
+            try {
+                const response = await apiCall('/sessions', {
+                    method: 'POST',
+                    body: JSON.stringify({ title })
+                });
+                
+                await loadSessions();
+                await loadSession(response.session_id);
+                showNotification('会话创建成功', 'success');
+            } catch (error) {
+                console.error('创建会话失败:', error);
+            }
+        }
+
+        async function loadSession(sessionId) {
+            try {
+                const response = await apiCall(`/sessions/${sessionId}`);
+                state.currentSessionId = sessionId;
+                state.messages = response.messages || [];
+                
+                const session = state.sessions.find(s => s.id === sessionId);
+                state.currentSessionTitle = session ? session.title : '未知会话';
+                
+                document.getElementById('session-title').textContent = state.currentSessionTitle;
+                renderMessages();
+                renderSessions(); // 重新渲染以更新选中状态
+                
+                setTimeout(scrollToBottom, 100);
+            } catch (error) {
+                console.error('加载会话失败:', error);
+            }
+        }
+
+        async function deleteSession(sessionId) {
+            if (!confirm('确定要删除这个会话吗？')) return;
+            
+            try {
+                await apiCall(`/sessions/${sessionId}`, { method: 'DELETE' });
+                await loadSessions();
+                
+                if (state.currentSessionId === sessionId) {
+                    state.currentSessionId = null;
+                    state.currentSessionTitle = '';
+                    state.messages = [];
+                    document.getElementById('session-title').textContent = '选择或创建一个会话';
+                    renderMessages();
+                }
+                
+                showNotification('会话删除成功', 'success');
+            } catch (error) {
+                console.error('删除会话失败:', error);
+            }
+        }
+
+        // 消息处理
+        function getMessageContainerClass(message) {
+            if (message.role === 'user') {
+                return 'bg-blue-600 text-white';
+            }
+            
+            // 检查是否是工具调用结果
+            // 支持两种格式：换行分隔和空格分隔
+            const toolCallPattern1 = /^函数名:\s*(.+?)\n参数:\s*(.+?)\n执行时间:\s*(.+?)(?:\n|$)/;
+            const toolCallPattern2 = /^函数名:\s*(.+?)\s+参数:\s*(.+?)\s+执行时间:\s*(.+?)(?:\n|$)/;
+            
+            if (toolCallPattern1.test(message.content) || toolCallPattern2.test(message.content)) {
+                return 'bg-transparent border-0'; // 透明背景，让内部的紫色样式显示
+            }
+            
+            return 'bg-white border border-gray-200';
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('messages-container');
+            container.innerHTML = '';
+            
+            state.messages.forEach(message => {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message-enter ${
+                    message.role === 'user' ? 'flex justify-end' : 'flex justify-start'
+                }`;
+                
+                messageElement.innerHTML = `
+                    <div class="max-w-3xl rounded-lg p-4 shadow-sm ${getMessageContainerClass(message)}">
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                message.role === 'user' ? 'bg-blue-500' : 'bg-gray-100'
+                            }">
+                                <i class="text-sm ${
+                                    message.role === 'user' ? 'fas fa-user text-white' : 'fas fa-robot text-gray-600'
+                                }"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <span class="text-sm font-medium">${
+                                        message.role === 'user' ? '你' : 'Alice '
+                                    }</span>
+                                    <span class="text-xs opacity-75">${formatTime(message.timestamp)}</span>
+                                </div>
+                                <div class="prose prose-sm max-w-none">${formatMessage(message.content)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(messageElement);
+            });
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (!message || state.isLoading) return;
+            
+            input.value = '';
+            state.isLoading = true;
+            updateSendButton();
+            
+            // 添加用户消息
+            state.messages.push({
+                id: Date.now(),
+                role: 'user',
+                content: message,
+                timestamp: new Date().toISOString()
+            });
+            
+            renderMessages();
+            scrollToBottom();
+            
+            // 显示加载指示器
+            showLoadingIndicator();
+            
+            try {
+                if (state.streamMode) {
+                    await sendStreamMessage(message);
+                } else {
+                    await sendNormalMessage(message);
+                }
+            } catch (error) {
+                console.error('发送消息失败:', error);
+                showNotification('发送消息失败: ' + error.message, 'error');
+            } finally {
+                state.isLoading = false;
+                updateSendButton();
+                hideLoadingIndicator();
+            }
+        }
+
+        async function sendStreamMessage(message) {
+            try {
+                const response = await fetch('http://localhost:8000/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: state.currentSessionId,
+                        stream: true
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                // 创建AI消息
+                const aiMessage = {
+                    id: Date.now() + 1,
+                    role: 'assistant',
+                    content: '',
+                    timestamp: new Date().toISOString()
+                };
+                state.messages.push(aiMessage);
+                
+                let buffer = '';
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    aiMessage.content = buffer;
+                    renderMessages();
+                    scrollToBottom();
+                }
+                
+                // 重新加载会话以获取完整历史
+                if (state.currentSessionId) {
+                    await loadSession(state.currentSessionId);
+                }
+                
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        async function sendNormalMessage(message) {
+            try {
+                const response = await apiCall('/chat', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: state.currentSessionId,
+                        stream: false
+                    })
+                });
+                
+                // 添加AI回复
+                state.messages.push({
+                    id: Date.now() + 1,
+                    role: 'assistant',
+                    content: response.message,
+                    timestamp: new Date().toISOString()
+                });
+                
+                renderMessages();
+                scrollToBottom();
+                
+                // 重新加载会话以获取完整历史
+                if (state.currentSessionId) {
+                    await loadSession(state.currentSessionId);
+                }
+                
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        // 工具管理
+        async function loadToolModules() {
+            try {
+                const response = await apiCall('/tool-modules');
+                state.toolModules = response.modules || [];
+                renderToolModules();
+            } catch (error) {
+                console.error('加载工具模块失败:', error);
+            }
+        }
+
+        async function loadAvailableTools() {
+            try {
+                const response = await apiCall('/tools');
+                state.availableTools = response.tools || [];
+                renderAvailableTools();
+            } catch (error) {
+                console.error('加载工具失败:', error);
+            }
+        }
+
+        function renderToolModules() {
+            const container = document.getElementById('tool-modules-list');
+            container.innerHTML = '';
+            
+            state.toolModules.forEach(module => {
+                const moduleElement = document.createElement('div');
+                moduleElement.className = 'flex items-center justify-between p-2 bg-gray-50 rounded';
+                
+                moduleElement.innerHTML = `
+                    <div class="flex-1">
+                        <span class="text-sm font-medium">${module.name}</span>
+                        <p class="text-xs text-gray-600">${module.description}</p>
+                    </div>
+                    <button onclick="toggleModule('${module.name}')"
+                            class="w-8 h-4 rounded-full relative transition-colors ${
+                                module.is_loaded ? 'bg-green-500' : 'bg-gray-400'
+                            }">
+                        <div class="w-4 h-4 bg-white rounded-full shadow transform transition-transform ${
+                            module.is_loaded ? 'translate-x-4' : 'translate-x-0'
+                        }"></div>
+                    </button>
+                `;
+                
+                container.appendChild(moduleElement);
+            });
+        }
+
+        function renderAvailableTools() {
+            const container = document.getElementById('available-tools-list');
+            container.innerHTML = '';
+            
+            state.availableTools.forEach(tool => {
+                const toolElement = document.createElement('div');
+                toolElement.className = 'p-2 bg-gray-50 rounded text-sm';
+                
+                toolElement.innerHTML = `
+                    <span class="font-medium">${tool.name}</span>
+                    <p class="text-xs text-gray-600 mt-1">${tool.description}</p>
+                `;
+                
+                container.appendChild(toolElement);
+            });
+        }
+
+        async function toggleModule(moduleName) {
+            const module = state.toolModules.find(m => m.name === moduleName);
+            if (!module) return;
+            
+            try {
+                if (module.is_loaded) {
+                    await apiCall('/tool-modules/unload', {
+                        method: 'POST',
+                        body: JSON.stringify({ module: moduleName })
+                    });
+                } else {
+                    await apiCall('/tool-modules/load', {
+                        method: 'POST',
+                        body: JSON.stringify({ modules: [moduleName] })
+                    });
+                }
+                
+                await loadToolModules();
+                await loadAvailableTools();
+                showNotification(`模块 ${moduleName} ${module.is_loaded ? '卸载' : '加载'}成功`, 'success');
+            } catch (error) {
+                console.error('切换模块失败:', error);
+            }
+        }
+
+        // 模型管理
+        async function loadModels() {
+            try {
+                const response = await apiCall('/models');
+                if (response.success && response.data && response.data.provider_details) {
+                    state.availableModels = response.data.provider_details;
+                } else {
+                    state.availableModels = {};
+                }
+                renderAvailableModels();
+            } catch (error) {
+                console.error('加载模型失败:', error);
+                state.availableModels = {};
+            }
+        }
+
+        async function loadCurrentModel() {
+            try {
+                const response = await apiCall('/models/current');
+                if (response.success && response.data) {
+                    state.currentModel = response.data;
+                } else {
+                    state.currentModel = { provider: '', model: '' };
+                }
+                updateCurrentModelDisplay();
+            } catch (error) {
+                console.error('加载当前模型失败:', error);
+                state.currentModel = { provider: '', model: '' };
+            }
+        }
+
+        function updateCurrentModelDisplay() {
+            document.getElementById('current-provider').textContent = state.currentModel.provider;
+            document.getElementById('current-model').textContent = state.currentModel.model;
+            document.getElementById('header-provider').textContent = state.currentModel.provider;
+            document.getElementById('header-model').textContent = state.currentModel.model;
+        }
+
+        function renderAvailableModels() {
+            const container = document.getElementById('available-models-list');
+            container.innerHTML = '';
+            
+            Object.entries(state.availableModels).forEach(([provider, model]) => {
+                const modelElement = document.createElement('div');
+                modelElement.className = 'p-3 border border-gray-200 rounded-lg';
+                
+                modelElement.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="font-medium">${provider}</span>
+                            <p class="text-sm text-gray-600">${model.model}</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs ${model.enabled ? 'text-green-600' : 'text-gray-400'}">
+                                <i class="${model.enabled ? 'fas fa-check-circle' : 'fas fa-times-circle'}"></i>
+                            </span>
+                            <button onclick="switchModel('${provider}')"
+                                    ${!model.enabled ? 'disabled' : ''}
+                                    class="px-2 py-1 text-xs text-white rounded ${
+                                        model.enabled ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'
+                                    }">
+                                切换
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(modelElement);
+            });
+        }
+
+        async function switchModel(provider) {
+            try {
+                const response = await apiCall('/models/switch', {
+                    method: 'POST',
+                    body: JSON.stringify({ provider })
+                });
+                
+                if (response.success) {
+                    await loadCurrentModel();
+                    showNotification(response.message || `已切换到模型: ${provider}`, 'success');
+                } else {
+                    showNotification('切换模型失败', 'error');
+                }
+            } catch (error) {
+                console.error('切换模型失败:', error);
+                showNotification('切换模型失败: ' + error.message, 'error');
+            }
+        }
+
+        // 工具函数
+        function handleEnterKey(event) {
+            if (event.shiftKey) {
+                return;
+            } else {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function toggleStream() {
+            state.streamMode = !state.streamMode;
+            const button = document.getElementById('stream-button');
+            const icon = button.querySelector('i');
+            const text = button.querySelector('span');
+            
+            if (state.streamMode) {
+                button.className = 'px-4 py-2 text-white text-sm rounded-lg hover:opacity-90 transition-opacity bg-green-600';
+                icon.className = 'fas fa-stream mr-1';
+                text.textContent = '流式';
+            } else {
+                button.className = 'px-4 py-2 text-white text-sm rounded-lg hover:opacity-90 transition-opacity bg-gray-600';
+                icon.className = 'fas fa-stop mr-1';
+                text.textContent = '普通';
+            }
+        }
+
+        function clearChat() {
+            if (confirm('确定要清空当前对话吗？')) {
+                state.messages = [];
+                renderMessages();
+            }
+        }
+
+        function exportChat() {
+            const chatData = {
+                session_id: state.currentSessionId,
+                title: state.currentSessionTitle,
+                messages: state.messages,
+                exported_at: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chat_${state.currentSessionId || 'export'}_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('messages-container');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function formatTime(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function formatMessage(content) {
+            if (!content) return '';
+            
+            // 检查是否是工具调用结果（以"函数名:"开头）
+            // 支持两种格式：换行分隔和空格分隔
+            const toolCallPattern1 = /^函数名:\s*(.+?)\n参数:\s*(.+?)\n执行时间:\s*(.+?)(?:\n|$)/;
+            const toolCallPattern2 = /^函数名:\s*(.+?)\s+参数:\s*(.+?)\s+执行时间:\s*(.+?)(?:\n|$)/;
+            
+            let match = content.match(toolCallPattern1) || content.match(toolCallPattern2);
+            
+            if (match) {
+                const functionName = escapeHtml(match[1].trim());
+                const parameters = escapeHtml(match[2].trim());
+                const executionTime = escapeHtml(match[3].trim());
+                
+                // 获取剩余内容（工具执行结果）
+                const remainingContent = content.replace(match[0], '').trim();
+                
+                return `
+                    <div class="tool-execution-header bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-3 rounded-lg mb-3">
+                        <div class="flex items-center mb-2">
+                            <i class="fas fa-cog mr-2"></i>
+                            <span class="font-semibold">工具执行</span>
+                        </div>
+                        <div class="text-sm space-y-1">
+                            <div><span class="opacity-90">函数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">${functionName}</code></div>
+                            <div><span class="opacity-90">参数:</span> <code class="bg-white bg-opacity-20 px-1 rounded">${parameters}</code></div>
+                            <div><span class="opacity-90">耗时:</span> <span class="text-green-200">${executionTime}</span></div>
+                        </div>
+                    </div>
+                    ${remainingContent ? '<div class="tool-result">' + formatRegularContent(remainingContent) + '</div>' : ''}
+                `;
+            }
+            
+            return formatRegularContent(content);
+        }
+
+        function formatRegularContent(content) {
+            if (!content) return '';
+            
+            // 先转义HTML特殊字符
+            content = escapeHtml(content);
+            
+            content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, '<div class="code-block"><pre><code>$2</code></pre></div>');
+            content = content.replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-sm">$1</code>');
+            content = content.replace(/\[工具调用: ([^\]]+)\]/g, '<div class="tool-call"><i class="fas fa-tools mr-2"></i>工具调用: $1</div>');
+            content = content.replace(/\n/g, '<br>');
+            content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-600 hover:underline">$1</a>');
+            
+            return content;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-4 py-2 rounded-lg text-white z-50 ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+            }`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function showLoadingIndicator() {
+            const container = document.getElementById('messages-container');
+            const loadingElement = document.createElement('div');
+            loadingElement.id = 'loading-indicator';
+            loadingElement.className = 'flex justify-start';
+            
+            loadingElement.innerHTML = `
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                            <i class="fas fa-robot text-gray-600 text-sm"></i>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="typing-indicator"></div>
+                            <span class="text-sm text-gray-600">AI正在思考...</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(loadingElement);
+            scrollToBottom();
+        }
+
+        function hideLoadingIndicator() {
+            const loadingElement = document.getElementById('loading-indicator');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+        }
+
+        function updateSendButton() {
+            const button = document.getElementById('send-button');
+            const input = document.getElementById('message-input');
+            
+            if (state.isLoading || !input.value.trim()) {
+                button.className = 'px-6 py-3 text-white rounded-lg transition-colors bg-gray-400 cursor-not-allowed';
+                button.disabled = true;
+            } else {
+                button.className = 'px-6 py-3 text-white rounded-lg transition-colors bg-blue-600 hover:bg-blue-700';
+                button.disabled = false;
+            }
+        }
+
+        // 事件监听器
+        document.getElementById('message-input').addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                handleEnterKey(event);
+            }
+        });
+
+        document.getElementById('message-input').addEventListener('input', function() {
+            updateSendButton();
+        });
+
+        // 初始化
+        async function init() {
+            console.log('🚀 初始化 Alice 前端...');
+            
+            try {
+                await loadSessions();
+                await loadToolModules();
+                await loadAvailableTools();
+                await loadModels();
+                await loadCurrentModel();
+                
+                // 如果有会话，加载最近的一个
+                if (state.sessions.length > 0) {
+                    await loadSession(state.sessions[0].id);
+                }
+                
+                console.log('✅ 初始化完成');
+            } catch (error) {
+                console.error('❌ 初始化失败:', error);
+                showNotification('初始化失败，请检查服务器连接', 'error');
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html> 

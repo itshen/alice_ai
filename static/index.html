@@ -1,0 +1,3371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alice - 智能工具调用框架</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- MathJax 配置和加载 -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['\\(', '\\)']],  // 只允许 \(...\) 格式的行内数学公式
+                displayMath: [['\\[', '\\]'], ['$$', '$$']],  // 保留块级数学公式
+                processEscapes: true,
+                processEnvironments: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+    
+    <!-- Mermaid 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
+    
+    <style>
+        /* Emoji 字体支持 - 增强版 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, 
+                         "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Noto Emoji", 
+                         "Twemoji Mozilla", "Android Emoji", "EmojiSymbols", sans-serif;
+        }
+        
+        /* 专门为emoji添加字体支持 */
+        .emoji {
+            font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Noto Emoji", 
+                         "Twemoji Mozilla", "Android Emoji", "EmojiSymbols", sans-serif;
+        }
+        
+        /* 确保所有文本内容都能显示emoji */
+        * {
+            font-family: inherit;
+        }
+        
+        /* 针对消息内容特别加强emoji支持 */
+        .message-content {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, 
+                         "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Noto Emoji", 
+                         "Twemoji Mozilla", "Android Emoji", "EmojiSymbols", sans-serif;
+        }
+        
+        /* 自定义滚动条 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* 消息动画 */
+        .message-enter {
+            animation: slideInUp 0.3s ease-out;
+        }
+        
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 打字机效果 */
+        .typing-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #3b82f6;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 8px 0;
+            overflow-x: auto;
+        }
+        
+        /* 数学公式样式 */
+        .MathJax {
+            outline: 0;
+        }
+        
+        .MathJax_Display {
+            text-align: center !important;
+            margin: 1em 0 !important;
+        }
+        
+        /* 行内数学公式 */
+        .MathJax_SVG {
+            display: inline !important;
+            vertical-align: middle !important;
+        }
+        
+        /* 块级数学公式 */
+        .MathJax_SVG_Display {
+            text-align: center !important;
+            margin: 1em 0 !important;
+            position: relative !important;
+            display: block !important;
+            width: 100% !important;
+        }
+        
+        /* 数学公式容器 */
+        .math-container {
+            overflow-x: auto;
+            padding: 8px 0;
+        }
+        
+        /* 行内数学公式容器 */
+        .math-inline {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        /* 块级数学公式容器 */
+        .math-display {
+            display: block;
+            text-align: center;
+            margin: 1em 0;
+            padding: 0.5em;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        
+        /* 工具调用样式 - 可折叠设计 */
+        .tool-call {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 3px solid #3b82f6;
+            color: #1e293b;
+            border-radius: 6px;
+            margin: 4px 0;
+            max-width: 100%;
+            overflow: hidden;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 11px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease;
+            min-height: 36px;
+        }
+        
+        .tool-call:hover {
+            box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
+            border-color: #cbd5e1;
+        }
+        
+        /* 工具调用头部 - 可点击 */
+        .tool-call-header {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+            min-height: 32px;
+            border-radius: 6px 6px 0 0;
+            transition: background-color 0.2s ease;
+        }
+        
+        .tool-call-header:hover {
+            background: rgba(59, 130, 246, 0.08);
+        }
+        
+        /* 工具名称样式 */
+        .tool-name {
+            font-weight: 600;
+            color: #3b82f6;
+            font-size: 13px;
+            flex: 1;
+            line-height: 1.3;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        /* 展开/收起图标 */
+        .tool-expand-icon {
+            color: #64748b;
+            font-size: 10px;
+            transition: transform 0.2s ease;
+            margin-left: 6px;
+            width: 12px;
+            height: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transform: rotate(0deg);
+        }
+        
+        .tool-expand-icon.expanded {
+            transform: rotate(180deg);
+        }
+        
+        .tool-expand-icon i {
+            font-size: 10px;
+        }
+        
+        /* 工具参数内容 - 默认隐藏 */
+        .tool-params-content {
+            padding: 0 12px;
+            border-top: none; /* 默认不显示顶部边框 */
+            background: rgba(59, 130, 246, 0.01);
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease, border-top 0.3s ease;
+        }
+        
+        .tool-params-content.expanded {
+            max-height: 300px; /* 设置最大高度，超出时可滚动 */
+            padding: 12px;
+            border-top: 1px solid #e2e8f0; /* 展开时才显示顶部边框 */
+            border-radius: 0 0 6px 6px;
+        }
+        
+        /* 工具参数样式 */
+        .tool-params {
+            color: #475569;
+            font-size: 11px;
+            line-height: 1.4;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 8px;
+            margin: 0;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .tool-params-label {
+            color: #475569;
+            font-weight: 500;
+            margin-bottom: 6px;
+            font-size: 11px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        /* 工具执行头部样式 - 强制紫色 */
+        .tool-execution-header {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%) !important;
+            color: white !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            margin: 8px 0 12px 0 !important;
+        }
+        
+
+        
+        /* 执行步骤样式 */
+        .execution-steps {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            border-left: 4px solid #6366f1;
+            max-width: 100%;
+            overflow-x: auto;
+            word-wrap: break-word;
+        }
+        
+        .step-item {
+            padding: 4px 0;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .step-item i {
+            width: 16px;
+            text-align: center;
+        }
+        
+        /* 侧边栏样式 */
+        .sidebar {
+            transition: all 0.3s ease;
+            width: 320px;
+            height: 100vh;
+            flex-shrink: 0;
+        }
+        
+        .sidebar.collapsed {
+            width: 60px;
+        }
+        
+        .sidebar.collapsed .sidebar-content {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .sidebar-toggle {
+            position: absolute;
+            top: 10px;
+            right: -15px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+        
+        .sidebar-toggle:hover {
+            background: #f3f4f6;
+        }
+        
+        .main-content {
+            transition: all 0.3s ease;
+            margin-left: 320px;
+        }
+        
+        .main-content.sidebar-collapsed {
+            margin-left: 60px;
+        }
+        
+        /* 隐藏工具返回值 */
+        .hidden {
+            display: none !important;
+        }
+        
+        /* 防止横向滚动条 */
+        .message-content {
+            max-width: 100%;
+            overflow-x: auto;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        
+        .message-content * {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        
+        /* 简洁的工具执行结果样式 */
+        .message-content .tool-execution-result {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+            border: 1px solid #e2e8f0 !important;
+            border-left: 4px solid #8b5cf6 !important;
+            border-radius: 12px !important;
+            padding: 16px !important;
+            margin: 12px 0 !important;
+            position: relative !important;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.1) !important;
+        }
+        
+
+        
+        /* 确保代码块不会溢出 */
+        .message-content pre,
+        .message-content code {
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+        }
+        
+        /* Mermaid 图表样式 */
+        .mermaid-container {
+            position: relative;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            overflow: auto;
+        }
+        
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100px;
+        }
+        
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Mermaid 工具栏样式 */
+        .mermaid-toolbar {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .mermaid-container:hover .mermaid-toolbar {
+            opacity: 1;
+        }
+        
+        .mermaid-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .mermaid-btn:hover {
+            background: #2563eb;
+        }
+        
+        .mermaid-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        /* PNG 下载对话框样式 */
+        .png-dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .png-dialog-content {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        .png-dialog h3 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .png-dialog label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .png-dialog input[type="number"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        
+        .png-dialog input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        .png-dialog-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        
+        .png-dialog-btn {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .png-dialog-btn.primary {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        
+        .png-dialog-btn:hover {
+            background: #f3f4f6;
+        }
+        
+        .png-dialog-btn.primary:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <div id="app" x-data="chatApp()" x-init="init()" class="h-screen bg-gray-50 flex">
+        <!-- 侧边栏 -->
+        <div class="sidebar bg-white border-r border-gray-200 z-20 relative" 
+             :class="{ 'collapsed': sidebarCollapsed }">
+            
+            <!-- 侧边栏收起按钮 -->
+            <button @click="toggleSidebar()" class="sidebar-toggle">
+                <i class="fas" :class="sidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'"></i>
+            </button>
+            
+            <div class="sidebar-content h-full flex flex-col">
+                <!-- 标题栏 -->
+            <div class="p-4 border-b border-gray-200">
+                    <h1 class="text-xl font-bold text-gray-800">Alice AI</h1>
+            </div>
+            
+            <!-- 标签页 -->
+            <div class="flex border-b border-gray-200">
+                <button @click="activeTab = 'sessions'" 
+                        :class="activeTab === 'sessions' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-800'"
+                        class="flex-1 px-3 py-2 text-sm font-medium">
+                    <i class="fas fa-comments mr-1"></i>会话
+                </button>
+                <button @click="activeTab = 'memories'" 
+                        :class="activeTab === 'memories' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-800'"
+                        class="flex-1 px-3 py-2 text-sm font-medium">
+                    <i class="fas fa-brain mr-1"></i>记忆
+                </button>
+                <button @click="activeTab = 'tools'" 
+                        :class="activeTab === 'tools' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-800'"
+                        class="flex-1 px-3 py-2 text-sm font-medium">
+                    <i class="fas fa-tools mr-1"></i>工具
+                </button>
+                <button @click="activeTab = 'models'" 
+                        :class="activeTab === 'models' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-800'"
+                        class="flex-1 px-3 py-2 text-sm font-medium">
+                    <i class="fas fa-cog mr-1"></i>模型
+                </button>
+            </div>
+            
+            <!-- 会话列表 -->
+            <div x-show="activeTab === 'sessions'" class="flex-1 overflow-y-auto custom-scrollbar">
+                <div class="p-4">
+                    <button @click="createNewSession()" 
+                            class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mb-3">
+                        <i class="fas fa-plus mr-2"></i>新建会话
+                    </button>
+                    
+                    <!-- 会话管理按钮组 -->
+                    <div class="flex space-x-2 mb-4" x-show="sessions.length > 0">
+                        <button @click="clearAllSessions()" 
+                                class="flex-1 bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm">
+                            <i class="fas fa-trash-alt mr-1"></i>清空全部
+                        </button>
+                        <button @click="exportAllSessions()" 
+                                class="flex-1 bg-gray-500 text-white px-3 py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">
+                            <i class="fas fa-download mr-1"></i>导出全部
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <template x-for="session in sessions" :key="session.id">
+                            <div @click="loadSession(session.id)"
+                                 :class="currentSessionId === session.id ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50'"
+                                 class="p-3 border border-gray-200 rounded-lg cursor-pointer transition-colors">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-medium text-gray-800 truncate" x-text="session.title"></h3>
+                                        <p class="text-xs text-gray-500 mt-1" x-text="formatDate(session.updated_at || session.created_at)"></p>
+                                    </div>
+                                    <button @click.stop="deleteSession(session.id)" 
+                                            class="text-gray-400 hover:text-red-500 ml-2">
+                                        <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- 空状态提示 -->
+                    <div x-show="sessions.length === 0" class="text-center py-8">
+                        <i class="fas fa-comments text-gray-300 text-4xl mb-4"></i>
+                        <p class="text-gray-500 text-sm">还没有会话</p>
+                        <p class="text-gray-400 text-xs mt-1">点击上方按钮创建第一个会话</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 记忆管理 -->
+            <div x-show="activeTab === 'memories'" class="flex-1 overflow-y-auto custom-scrollbar">
+                <div class="p-4">
+                    <!-- 记忆统计 -->
+                    <div class="mb-4 p-3 bg-purple-50 rounded-lg">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-sm font-medium text-purple-700">总记忆数</div>
+                                <div class="text-lg font-bold text-purple-900" x-text="memories.length"></div>
+                            </div>
+                            <i class="fas fa-brain text-purple-400 text-2xl"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- 记忆操作按钮 -->
+                    <div class="flex space-x-2 mb-4">
+                        <button @click="loadMemories()" 
+                                class="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                            <i class="fas fa-sync-alt mr-1"></i>刷新
+                        </button>
+                        <button @click="clearAllMemories()" 
+                                x-show="memories.length > 0"
+                                class="flex-1 bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm">
+                            <i class="fas fa-trash-alt mr-1"></i>清空
+                        </button>
+                    </div>
+                    
+                    <!-- 记忆分类过滤 -->
+                    <div class="mb-4" x-show="memories.length > 0">
+                        <select x-model="memoryFilter" @change="filterMemories()" 
+                                class="w-full p-2 border border-gray-200 rounded-lg text-sm">
+                            <option value="">所有类别</option>
+                            <option value="general">一般</option>
+                            <option value="user_preference">用户偏好</option>
+                            <option value="project_info">项目信息</option>
+                            <option value="task">任务</option>
+                            <option value="knowledge">知识</option>
+                            <option value="conversation">对话</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 记忆列表 -->
+                    <div class="space-y-2">
+                        <template x-for="memory in filteredMemories" :key="memory.id">
+                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                                <!-- 记忆头部信息 -->
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-xs font-mono text-gray-500" x-text="'ID:' + memory.id"></span>
+                                        <span class="text-xs px-2 py-1 rounded text-white"
+                                              :class="getCategoryColor(memory.category)"
+                                              x-text="getCategoryName(memory.category)"></span>
+                                    </div>
+                                    <button @click="deleteMemory(memory.id)" 
+                                            class="text-gray-400 hover:text-red-500 transition-colors"
+                                            title="删除记忆">
+                                        <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- 记忆内容 -->
+                                <div class="text-sm text-gray-800 mb-2" x-text="memory.content"></div>
+                                
+                                <!-- 标签 -->
+                                <div x-show="memory.tags && memory.tags.length > 0" class="mb-2">
+                                    <template x-for="tag in memory.tags" :key="tag">
+                                        <span class="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded mr-1 mb-1"
+                                              x-text="tag"></span>
+                                    </template>
+                                </div>
+                                
+                                <!-- 时间信息 -->
+                                <div class="flex justify-between text-xs text-gray-400">
+                                    <span x-text="'创建: ' + formatMemoryDate(memory.created_date)"></span>
+                                    <span x-show="memory.updated_date" 
+                                          x-text="'更新: ' + formatMemoryDate(memory.updated_date)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- 空状态提示 -->
+                    <div x-show="memories.length === 0" class="text-center py-8">
+                        <i class="fas fa-brain text-gray-300 text-4xl mb-4"></i>
+                        <p class="text-gray-500 text-sm">还没有保存记忆</p>
+                        <p class="text-gray-400 text-xs mt-1">在对话中AI会自动保存重要信息</p>
+                    </div>
+                    
+                    <!-- 过滤结果为空 -->
+                    <div x-show="memories.length > 0 && filteredMemories.length === 0" class="text-center py-8">
+                        <i class="fas fa-filter text-gray-300 text-4xl mb-4"></i>
+                        <p class="text-gray-500 text-sm">当前分类下没有记忆</p>
+                        <button @click="memoryFilter = ''; filterMemories()" 
+                                class="text-blue-600 hover:text-blue-800 text-xs mt-2">
+                            清除过滤器
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 工具管理 -->
+            <div x-show="activeTab === 'tools'" class="flex-1 overflow-y-auto custom-scrollbar">
+                <div class="p-4">
+                    <div class="mb-4">
+                        <h3 class="font-medium text-gray-800 mb-2">工具模块</h3>
+                        <div class="space-y-2">
+                            <template x-for="module in toolModules" :key="module.name">
+                                <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                    <div class="flex-1">
+                                        <span class="text-sm font-medium" x-text="module.name"></span>
+                                        <p class="text-xs text-gray-600" x-text="module.description"></p>
+                                    </div>
+                                    <button @click="toggleModule(module.name)"
+                                            :class="module.is_loaded ? 'bg-green-500' : 'bg-gray-400'"
+                                            class="w-8 h-4 rounded-full relative transition-colors">
+                                        <div :class="module.is_loaded ? 'translate-x-4' : 'translate-x-0'"
+                                             class="w-4 h-4 bg-white rounded-full shadow transform transition-transform"></div>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-medium text-gray-800 mb-2">
+                            <i class="fas fa-cogs mr-1 text-green-600"></i>当前可用工具
+                            <span class="text-xs text-gray-500 font-normal ml-1">（AI实际可调用）</span>
+                        </h3>
+                        <div class="space-y-1">
+                            <template x-for="tool in availableTools" :key="tool.name">
+                                <div class="p-2 bg-gray-50 rounded text-sm border-l-2"
+                                     :class="tool.module ? 'border-blue-400' : 'border-green-400'">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-medium" x-text="tool.name"></span>
+                                        <span class="text-xs px-1 py-0.5 rounded text-white"
+                                              :class="tool.module ? 'bg-blue-500' : 'bg-green-500'"
+                                              x-text="tool.module || '内置'"></span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 mt-1" x-text="tool.description"></p>
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <!-- 空状态提示 -->
+                        <div x-show="availableTools.length === 0" class="text-center py-4">
+                            <i class="fas fa-tools text-gray-300 text-2xl mb-2"></i>
+                            <p class="text-gray-500 text-xs">没有可用工具</p>
+                            <p class="text-gray-400 text-xs mt-1">请激活工具模块</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 模型管理 -->
+            <div x-show="activeTab === 'models'" class="flex-1 overflow-y-auto custom-scrollbar">
+                <div class="p-4">
+                    <div class="mb-4">
+                        <h3 class="font-medium text-gray-800 mb-2">当前模型</h3>
+                        <div class="p-3 bg-blue-50 rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-brain text-blue-600 mr-2"></i>
+                                    <span class="font-medium" x-text="currentModel?.provider || '未知'"></span>
+                            </div>
+                                <p class="text-sm text-gray-600 mt-1" x-text="currentModel?.model || '未配置'"></p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-medium text-gray-800 mb-2">可用模型</h3>
+                        <div class="space-y-2">
+                            <template x-for="(model, provider) in availableModels" :key="provider">
+                                <div class="p-3 border border-gray-200 rounded-lg">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <span class="font-medium" x-text="provider"></span>
+                                            <p class="text-sm text-gray-600" x-text="model.model"></p>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span :class="model.enabled ? 'text-green-600' : 'text-gray-400'"
+                                                  class="text-xs">
+                                                <i :class="model.enabled ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
+                                            </span>
+                                            <button @click="switchModel(provider)"
+                                                    :disabled="!model.enabled"
+                                                    :class="model.enabled ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'"
+                                                    class="px-2 py-1 text-xs text-white rounded">
+                                                切换
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 主聊天区域 -->
+        <div class="flex-1 flex flex-col h-full" 
+             :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+            <!-- 聊天头部 -->
+            <div class="bg-white border-b border-gray-200 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="font-semibold text-gray-800" x-text="currentSessionTitle || '选择或创建一个会话开始与Alice对话'"></h2>
+                        <p class="text-sm text-gray-600">
+                            <span x-text="currentModel?.provider || '未知'"></span> - <span x-text="currentModel?.model || '未配置'"></span>
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <!-- 流式模式切换 -->
+                        <button @click="toggleStream()" 
+                                :class="streamMode ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                class="px-3 py-1 text-sm rounded-lg hover:opacity-90 transition-all">
+                            <i :class="streamMode ? 'fas fa-stream' : 'fas fa-stop'" class="mr-1"></i>
+                            <span x-text="streamMode ? '流式' : '普通'"></span>
+                        </button>
+                        
+                        <!-- 隐藏工具返回值切换 -->
+                        <button @click="toggleHideToolResults()" 
+                                :class="hideToolResults ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                class="px-3 py-1 text-sm rounded-lg hover:opacity-90 transition-all"
+                                title="隐藏工具调用的返回值">
+                            <i class="fas fa-eye-slash mr-1"></i>
+                            <span x-text="hideToolResults ? '已隐藏' : '显示全部'"></span>
+                        </button>
+                        
+                        <div class="border-l border-gray-300 h-6 mx-2"></div>
+                        
+                        <button @click="clearChat()" 
+                                class="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50">
+                            <i class="fas fa-broom mr-1"></i>清空
+                        </button>
+                        <button @click="exportChat()" 
+                                class="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50">
+                            <i class="fas fa-download mr-1"></i>导出
+                        </button>
+                        <button @click="forceRenderAll()" 
+                                class="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50"
+                                title="强制重新渲染所有消息">
+                            <i class="fas fa-sync-alt mr-1"></i>刷新渲染
+                        </button>
+                        <button @click="debugMessages()" 
+                                class="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50"
+                                title="调试消息内容">
+                            <i class="fas fa-bug mr-1"></i>调试
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 消息区域 -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4" id="messagesContainer">
+                <template x-for="messageGroup in getGroupedMessages()" :key="messageGroup.id">
+                    <div :class="getMessageAlignment(messageGroup.messages[0])"
+                         class="message-enter"
+                         :data-message-id="messageGroup.id">
+                        <div :class="getMessageContainerClass(messageGroup.messages[0])"
+                             class="max-w-3xl rounded-lg p-4 shadow-sm">
+                            <div class="flex items-start space-x-3">
+                                <div :class="getAvatarClass(messageGroup.messages[0])"
+                                     class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <i :class="getAvatarIcon(messageGroup.messages[0])"
+                                       class="text-sm"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-sm font-medium" 
+                                              x-text="getMessageSender(messageGroup.messages[0])"></span>
+                                        <span class="text-xs opacity-75" x-text="formatTime(messageGroup.messages[0].timestamp)"></span>
+                                        <span x-show="messageGroup.messages.length > 1" class="text-xs text-gray-500">
+                                            (合并了 <span x-text="messageGroup.messages.length"></span> 条消息)
+                                        </span>
+                                    </div>
+                                    <!-- 渲染合并后的消息内容 -->
+                                    <template x-for="(message, index) in messageGroup.messages" :key="message.id">
+                                        <div class="prose prose-sm max-w-none message-content" 
+                                             :class="index > 0 ? 'mt-4 pt-4 border-t border-gray-200' : ''"
+                                             x-html="formatMessage(message.content, message)"></div>
+                                    </template>
+                                    <!-- 调试信息 (已关闭) -->
+                                    <div x-show="false" class="mt-2 p-2 bg-gray-100 text-xs rounded">
+                                        <strong>消息组:</strong> <span x-text="messageGroup.messages.length + ' 条消息'"></span><br>
+                                        <strong>第一条内容预览:</strong> <span x-text="messageGroup.messages[0].content ? messageGroup.messages[0].content.substring(0, 100) + '...' : '无内容'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                
+                <!-- 加载指示器 -->
+                <div x-show="isLoading" class="flex justify-start">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                                <i class="fas fa-robot text-gray-600 text-sm"></i>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="typing-indicator"></div>
+                                <span class="text-sm text-gray-600">AI正在思考...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 输入区域 -->
+            <div class="bg-white border-t border-gray-200 p-4">
+                <div class="flex items-center space-x-4">
+                    <div class="flex-1">
+                        <textarea id="messageInput"
+                                  x-model="inputMessage" 
+                                  @keydown.enter.prevent="handleEnterKey($event)"
+                                  @compositionstart="handleCompositionStart()"
+                                  @compositionend="handleCompositionEnd()"
+                                  placeholder="输入你的消息... (Shift+Enter换行，Enter发送)"
+                                  class="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  rows="3"></textarea>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <button @click="sendMessage()" 
+                                :disabled="!inputMessage.trim() || isLoading"
+                                :class="!inputMessage.trim() || isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
+                                class="px-6 py-3 text-white rounded-lg transition-colors">
+                            <i class="fas fa-paper-plane mr-2"></i>发送
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右下角浮动执行过程 -->
+        <div x-show="showExecutionProgress && isLoading" 
+             x-data="{ isDragging: false, startX: 0, startY: 0, currentX: 0, currentY: 0 }"
+             @mousedown="isDragging = true; startX = $event.clientX - currentX; startY = $event.clientY - currentY"
+             @mousemove.window="if(isDragging) { currentX = $event.clientX - startX; currentY = $event.clientY - startY }"
+             @mouseup.window="isDragging = false"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 transform translate-x-4"
+             x-transition:enter-end="opacity-100 transform translate-x-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 transform translate-x-0"
+             x-transition:leave-end="opacity-0 transform translate-x-4"
+             :style="`transform: translate(${currentX}px, ${currentY}px)`"
+             class="fixed bottom-20 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-80 max-h-96 z-40 cursor-move select-none flex flex-col">
+            
+            <!-- 头部 -->
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center flex-1">
+                    <div class="w-3 h-3 bg-blue-500 rounded-full animate-pulse mr-2"></div>
+                    <span class="text-sm font-medium text-gray-700">执行过程</span>
+                </div>
+                <div class="flex items-center space-x-1">
+                    <button @click.stop="hideExecutionProgress = !hideExecutionProgress" 
+                            class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <i class="fas" :class="hideExecutionProgress ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                    </button>
+                    <!-- 强制关闭按钮 -->
+                    <button @click.stop="showExecutionProgress = false; isLoading = false; executionSteps = []; currentToolCall = null; console.log('强制关闭执行过程')" 
+                            class="text-red-400 hover:text-red-600 transition-colors">
+                        <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            
+                         <!-- 执行步骤列表 -->
+             <div x-show="!hideExecutionProgress" 
+                  x-transition:enter="transition ease-out duration-200"
+                  x-transition:enter-start="opacity-0"
+                  x-transition:enter-end="opacity-100"
+                  x-transition:leave="transition ease-in duration-200"
+                  x-transition:leave-start="opacity-100"
+                  x-transition:leave-end="opacity-0"
+                  class="space-y-2 flex-1 overflow-y-auto min-h-0">
+                <template x-for="(step, index) in executionSteps" :key="index">
+                    <div class="flex items-start space-x-2 text-xs">
+                        <span x-text="step.icon" class="flex-shrink-0 mt-0.5"></span>
+                        <div class="flex-1">
+                            <div x-text="step.message" class="text-gray-700 leading-relaxed"></div>
+                            <!-- 显示thinking内容 -->
+                            <div x-show="step.type === 'thinking' && step.content" 
+                                 class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs max-h-20 overflow-y-auto">
+                                <div class="text-blue-700 font-medium mb-1">思考内容:</div>
+                                <div x-text="step.content" class="text-blue-600 whitespace-pre-wrap"></div>
+                            </div>
+                            <div x-text="step.timestamp" class="text-gray-400 mt-1"></div>
+            </div>
+        </div>
+                </template>
+    </div>
+            
+
+        </div>
+    </div>
+
+    <!-- 通知组件 -->
+    <div x-show="notification.show" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform translate-y-2"
+         x-transition:enter-end="opacity-100 transform translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 transform translate-y-0"
+         x-transition:leave-end="opacity-0 transform translate-y-2"
+         class="fixed top-4 right-4 px-4 py-2 rounded-lg text-white z-50"
+         :class="{
+             'bg-green-500': notification.type === 'success',
+             'bg-red-500': notification.type === 'error',
+             'bg-blue-500': notification.type === 'info'
+         }">
+        <span x-text="notification.message"></span>
+    </div>
+
+
+
+    <script>
+        function chatApp() {
+            return {
+                // 状态管理
+                activeTab: 'sessions',
+                currentSessionId: null,
+                currentSessionTitle: '新对话',
+                messages: [],
+                sessions: [],
+                toolModules: [],
+                availableTools: [],
+                availableModels: {},
+                currentModel: {
+                    provider: '未知',
+                    model: '未配置',
+                    enabled: false
+                },
+                memories: [],
+                filteredMemories: [],
+                memoryFilter: '',
+                inputMessage: '',
+                isLoading: false,
+                streamMode: true,
+                sidebarCollapsed: false,  // 侧边栏收起状态
+                isComposing: false,  // 输入法组合状态
+                hideToolResults: false,  // 隐藏工具返回值
+                hideExecutionProgress: false,  // 隐藏执行过程
+                showExecutionProgress: false,  // 显示执行过程
+                executionSteps: [],  // 执行步骤
+                currentToolCall: null,  // 当前工具调用
+                // 渲染优化标志
+                needsMathRender: false,
+                needsMermaidRender: false,
+                scrollTimeout: null,
+                renderTimeout: null,
+                
+                // 通知
+                notification: {
+                    show: false,
+                    message: '',
+                    type: 'info'
+                },
+                
+                // 初始化
+                async init() {
+                    // 确保执行过程默认隐藏
+                    this.showExecutionProgress = false;
+                    this.executionSteps = [];
+                    this.currentToolCall = null;
+                    this.isLoading = false;
+                    console.log('初始化完成，状态:', {
+                        showExecutionProgress: this.showExecutionProgress,
+                        isLoading: this.isLoading,
+                        executionSteps: this.executionSteps.length
+                    });
+                    
+                    // 初始化Mermaid
+                    setTimeout(() => {
+                        window.initMermaid();
+                    }, 100);
+                    
+                    // 加载用户偏好
+                    this.hideToolResults = localStorage.getItem('hideToolResults') === 'true';
+                    this.streamMode = localStorage.getItem('streamMode') !== 'false'; // 默认为true
+                    
+                    await this.loadSessions();
+                    await this.loadToolModules();
+                    await this.loadAvailableTools();
+                    await this.loadModels();
+                    await this.loadCurrentModel();
+                    await this.loadMemories();
+                    
+                    // 如果有会话，加载最近的一个
+                    if (this.sessions.length > 0) {
+                        await this.loadSession(this.sessions[0].id);
+                    }
+                },
+                
+                // API调用方法
+                async apiCall(endpoint, options = {}) {
+                    try {
+                        const response = await fetch(`http://localhost:8000${endpoint}`, {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...options.headers
+                            },
+                            ...options
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        return await response.json();
+                    } catch (error) {
+                        console.error('API调用失败:', error);
+                        this.showNotification('API调用失败: ' + error.message, 'error');
+                        throw error;
+                    }
+                },
+                
+                // 会话管理
+                async loadSessions() {
+                    try {
+                        const response = await this.apiCall('/sessions');
+                        this.sessions = response.sessions || [];
+                    } catch (error) {
+                        console.error('加载会话失败:', error);
+                    }
+                },
+                
+                async createNewSession() {
+                    try {
+                        const response = await this.apiCall('/sessions', {
+                            method: 'POST',
+                            body: JSON.stringify({ title: '新对话' })
+                        });
+                        
+                        await this.loadSessions();
+                        await this.loadSession(response.session_id);
+                        this.showNotification('会话创建成功', 'success');
+                        
+                        // 聚焦到输入框
+                        this.$nextTick(() => {
+                            const inputElement = document.getElementById('messageInput');
+                            if (inputElement) {
+                                inputElement.focus();
+                            }
+                        });
+                    } catch (error) {
+                        console.error('创建会话失败:', error);
+                        this.showNotification('创建会话失败: ' + error.message, 'error');
+                    }
+                },
+                
+                async loadSession(sessionId) {
+                    try {
+                        const response = await this.apiCall(`/sessions/${sessionId}`);
+                        this.currentSessionId = sessionId;
+                        this.messages = response.messages || [];
+                        
+                        // 找到会话标题
+                        const session = this.sessions.find(s => s.id === sessionId);
+                        this.currentSessionTitle = session ? session.title : '未知会话';
+                        
+                        // 滚动到底部并完整渲染（页面加载时）
+                        this.$nextTick(() => {
+                            this.scrollToBottom();
+                            // 页面加载时进行完整渲染
+                            this.renderMath();
+                            setTimeout(() => {
+                                window.renderMermaidCharts();
+                            }, 200);
+                        });
+                    } catch (error) {
+                        console.error('加载会话失败:', error);
+                    }
+                },
+                
+                async deleteSession(sessionId) {
+                    try {
+                        await this.apiCall(`/sessions/${sessionId}`, { method: 'DELETE' });
+                        await this.loadSessions();
+                        
+                        if (this.currentSessionId === sessionId) {
+                            this.currentSessionId = null;
+                            this.currentSessionTitle = '';
+                            this.messages = [];
+                        }
+                        
+                        this.showNotification('会话删除成功', 'success');
+                    } catch (error) {
+                        console.error('删除会话失败:', error);
+                    }
+                },
+                
+                // 消息发送
+                async sendMessage() {
+                    if (!this.inputMessage.trim() || this.isLoading) return;
+                    
+                    const message = this.inputMessage.trim();
+                    this.inputMessage = '';
+                    this.isLoading = true;
+                    
+                    // 清空执行步骤并开始显示执行过程
+                    this.executionSteps = [];
+                    this.currentToolCall = null;
+                    this.showExecutionProgress = true;
+                    console.log('开始对话，showExecutionProgress =', this.showExecutionProgress);
+                    
+                    // 添加用户消息
+                    this.messages.push({
+                        id: Date.now(),
+                        role: 'user',
+                        content: message,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    this.scrollToBottom();
+                    
+                    try {
+                        if (this.streamMode) {
+                            await this.sendStreamMessage(message);
+                        } else {
+                            await this.sendNormalMessage(message);
+                        }
+                    } catch (error) {
+                        console.error('发送消息失败:', error);
+                        this.showNotification('发送消息失败: ' + error.message, 'error');
+                        // 确保错误时也重置loading状态和隐藏执行过程
+                        this.isLoading = false;
+                        this.showExecutionProgress = false;
+                    }
+                },
+                
+                async sendStreamMessage(message) {
+                    try {
+                        const response = await fetch('http://localhost:8000/chat', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                message: message,
+                                session_id: this.currentSessionId,
+                                stream: true,
+                                generate_title: !this.currentSessionId || this.currentSessionTitle === '新对话'  // 新对话或标题为"新对话"时生成标题
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        // 创建AI消息
+                        const aiMessage = {
+                            id: Date.now() + 1,
+                            role: 'assistant',
+                            content: '',
+                            timestamp: new Date().toISOString(),
+                            steps: []  // 存储执行步骤
+                        };
+                        this.messages.push(aiMessage);
+                        
+                        // 使用ReadableStream处理SSE
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+                        
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            
+                            buffer += decoder.decode(value, { stream: true });
+                            
+                            // 简化SSE处理 - 按行处理
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop() || ''; // 保留不完整的行
+                            
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const data = JSON.parse(line.substring(6));
+                                        await this.handleSSEEvent(data, aiMessage);
+                                        
+                                        // 强制更新界面并滚动到底部
+                                        this.scrollToBottom();
+                                    } catch (e) {
+                                        console.error('解析SSE数据失败:', e, line);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 流式响应完成后，重新加载会话以获取完整历史（包括工具调用结果）
+                        if (this.currentSessionId) {
+                            await this.loadSession(this.currentSessionId);
+                        }
+                        
+                        // 流式响应完成，重置loading状态
+                        this.isLoading = false;
+                        
+                        // 流式完成后，立即进行完整渲染
+                        this.$nextTick(() => {
+                            this.renderMath();
+                            setTimeout(() => {
+                                window.renderMermaidCharts();
+                            }, 200);
+                        });
+                        
+                    } catch (error) {
+                        // 流式响应出错，也要重置loading状态和隐藏执行过程
+                        this.isLoading = false;
+                        this.showExecutionProgress = false;
+                        throw error;
+                    }
+                },
+                
+                async handleSSEEvent(data, aiMessage) {
+                    // console.log('处理SSE事件:', data.type, data); // 调试日志
+                    
+                    // 避免重复添加相同类型的步骤
+                    const lastStep = aiMessage.steps[aiMessage.steps.length - 1];
+                    const isDuplicate = lastStep && lastStep.type === data.type && 
+                                       Date.now() - new Date(lastStep.timestamp).getTime() < 1000; // 1秒内的重复事件
+                    
+                    if (isDuplicate) {
+                        return;
+                    }
+                    
+                    // 更新右下角执行过程显示
+                    this.updateExecutionProgress(data);
+                    
+                    switch (data.type) {
+                        case 'start':
+                            aiMessage.steps.push({ 
+                                type: 'start', 
+                                message: data.message, 
+                                timestamp: new Date(),
+                                icon: '🚀'
+                            });
+                            break;
+                            
+                        case 'title_generating':
+                            aiMessage.steps.push({ 
+                                type: 'title_generating', 
+                                message: data.message, 
+                                timestamp: new Date(),
+                                icon: '🎯'
+                            });
+                            break;
+                            
+                        case 'title_generated':
+                            aiMessage.steps.push({ 
+                                type: 'title_generated', 
+                                title: data.title, 
+                                message: `生成标题: ${data.title}`,
+                                timestamp: new Date(),
+                                icon: '✨'
+                            });
+                            // 更新当前会话ID和标题
+                            this.currentSessionId = data.session_id;
+                            this.currentSessionTitle = data.title;
+                            // 重新加载会话列表
+                            await this.loadSessions();
+                            break;
+                            
+                        case 'thinking':
+                            aiMessage.steps.push({ 
+                                type: 'thinking', 
+                                message: data.message, 
+                                timestamp: new Date(),
+                                icon: '🧠'
+                            });
+                            break;
+                            
+                        case 'tool_start':
+                            aiMessage.steps.push({ 
+                                type: 'tool_start', 
+                                message: data.message, 
+                                timestamp: new Date(),
+                                icon: '🔧'
+                            });
+                            break;
+                            
+                        case 'tool_result':
+                            aiMessage.steps.push({ 
+                                type: 'tool_result', 
+                                content: data.content, 
+                                message: '工具执行完成',
+                                timestamp: new Date(),
+                                icon: '✅'
+                            });
+                            break;
+                            
+                        case 'tool_end':
+                            aiMessage.steps.push({ 
+                                type: 'tool_end', 
+                                message: data.message, 
+                                timestamp: new Date(),
+                                icon: '🏁'
+                            });
+                            break;
+                            
+                        case 'message':
+                            // 检查是否包含thinking标签
+                            if (data.content && data.content.includes('💭 **AI思考过程：**')) {
+                                // 这是thinking内容，添加特殊标记
+                                aiMessage.content += data.content;
+                                // 添加thinking步骤到执行过程
+                                const thinkingMatch = data.content.match(/💭 \*\*AI思考过程：\*\*\n([\s\S]*?)\n\n/);
+                                if (thinkingMatch) {
+                                    aiMessage.steps.push({
+                                        type: 'thinking',
+                                        message: '正在思考...',
+                                        content: thinkingMatch[1].trim(),
+                                        timestamp: new Date(),
+                                        icon: '💭'
+                                    });
+                                }
+                            } else {
+                                // 累积普通消息内容
+                                aiMessage.content += data.content;
+                            }
+                            // 尝试提取工具调用信息
+                            this.extractToolCallFromMessage(aiMessage);
+                            break;
+                            
+                        case 'complete':
+                            aiMessage.steps.push({ 
+                                type: 'complete', 
+                                message: data.message, 
+                                timestamp: new Date(),
+                                icon: '🎉'
+                            });
+                            
+                            // 流式完成后重新处理消息内容，确保Markdown正确渲染
+                            if (aiMessage.content && aiMessage.content.includes('strong class="font-bold">')) {
+                                // 智能修复，避免重复添加<
+                                aiMessage.content = aiMessage.content.replace(/([^<])strong class="font-bold">/g, '$1<strong class="font-bold">');
+                                aiMessage.content = aiMessage.content.replace(/^strong class="font-bold">/gm, '<strong class="font-bold">');
+                                aiMessage.content = aiMessage.content.replace(/([^<])em class="italic">/g, '$1<em class="italic">');
+                                aiMessage.content = aiMessage.content.replace(/^em class="italic">/gm, '<em class="italic">');
+                            }
+                            break;
+                            
+                        case 'error':
+                            aiMessage.content += `\n[错误: ${data.message}]`;
+                            aiMessage.steps.push({ 
+                                type: 'error', 
+                                message: data.message, 
+                                timestamp: new Date(),
+                                icon: '❌'
+                            });
+                            break;
+                    }
+                    
+                    // console.log('当前步骤数量:', aiMessage.steps.length); // 调试日志
+                    // console.log('当前消息内容长度:', aiMessage.content.length); // 调试日志
+                    // console.log('消息数组长度:', this.messages.length); // 调试日志
+                    
+                    // 强制触发Alpine.js重新渲染
+                    // 找到消息在数组中的索引并直接更新
+                    const messageIndex = this.messages.findIndex(m => m.id === aiMessage.id);
+                    if (messageIndex !== -1) {
+                        // 直接更新数组中的消息对象
+                        this.messages[messageIndex] = { ...aiMessage };
+                        // 触发响应式更新
+                        this.messages = [...this.messages];
+                        
+                        // 延迟触发渲染，避免频繁调用（流式过程中）
+                        if (!this.renderTimeout) {
+                            this.renderTimeout = setTimeout(() => {
+                                // 只在流式过程中进行轻量渲染
+                                if (this.isLoading) {
+                                    this.renderMath(); // 只渲染新的数学元素
+                                } else {
+                                    // 流式完成后进行完整渲染
+                                    this.renderMath();
+                                    setTimeout(() => {
+                                        window.renderMermaidCharts();
+                                    }, 200);
+                                }
+                                this.renderTimeout = null;
+                            }, this.isLoading ? 300 : 100); // 流式中降低频率
+                        }
+                    }
+                },
+                
+                async sendNormalMessage(message) {
+                    try {
+                        const response = await this.apiCall('/chat', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                message: message,
+                                session_id: this.currentSessionId,
+                                stream: false
+                            })
+                        });
+                        
+                        // 添加AI回复
+                        this.messages.push({
+                            id: Date.now() + 1,
+                            role: 'assistant',
+                            content: response.message,
+                            timestamp: new Date().toISOString()
+                        });
+                        
+                        this.scrollToBottom();
+                        
+                        // 重新加载会话以获取完整历史
+                        if (this.currentSessionId) {
+                            await this.loadSession(this.currentSessionId);
+                        }
+                        
+                        // 非流式响应完成后，立即渲染数学公式和Mermaid图表
+                        this.$nextTick(() => {
+                            this.renderMath();
+                            setTimeout(() => {
+                                window.renderMermaidCharts();
+                            }, 200);
+                        });
+                        
+                    } catch (error) {
+                        throw error;
+                    }
+                },
+                
+                // 数学公式渲染 - 智能检测
+                renderMath() {
+                    if (window.MathJax && window.MathJax.typesetPromise) {
+                        // 在流式过程中，只渲染新的数学元素以提高性能
+                        if (this.isLoading) {
+                            const mathElements = document.querySelectorAll('.math-inline, .math-display');
+                            const unprocessedElements = Array.from(mathElements).filter(el => 
+                                !el.querySelector('.MathJax, .MathJax_SVG')
+                            );
+                            
+                            if (unprocessedElements.length > 0) {
+                                window.MathJax.typesetPromise(unprocessedElements).catch(function (err) {
+                                    // 静默处理错误，避免控制台污染
+                                    if (!err.message.includes('macro parameter character')) {
+                                        console.error('MathJax 渲染错误:', err);
+                                    }
+                                });
+                            }
+                        } else {
+                            // 流式完成后或页面加载时，进行完整渲染
+                            window.MathJax.typesetPromise().catch(function (err) {
+                                // 静默处理错误，避免控制台污染
+                                if (!err.message.includes('macro parameter character')) {
+                                    console.error('MathJax 渲染错误:', err);
+                                }
+                            });
+                        }
+                    }
+                },
+                
+                // 工具管理
+                async loadToolModules() {
+                    try {
+                        const response = await this.apiCall('/tool-modules');
+                        this.toolModules = response.modules || [];
+                    } catch (error) {
+                        console.error('加载工具模块失败:', error);
+                    }
+                },
+                
+                async loadAvailableTools() {
+                    try {
+                        // 获取实际可供AI使用的工具列表（内置工具 + 已激活的模块工具）
+                        const response = await this.apiCall('/tools/active');
+                        this.availableTools = response.tools || [];
+                    } catch (error) {
+                        console.error('加载工具失败:', error);
+                        // 如果新API不存在，回退到旧API
+                        try {
+                            const fallbackResponse = await this.apiCall('/tools');
+                            this.availableTools = fallbackResponse.tools || [];
+                        } catch (fallbackError) {
+                            console.error('加载工具失败（回退）:', fallbackError);
+                            this.availableTools = [];
+                        }
+                    }
+                },
+                
+                async toggleModule(moduleName) {
+                    const module = this.toolModules.find(m => m.name === moduleName);
+                    if (!module) return;
+                    
+                    try {
+                        if (module.is_loaded) {
+                            await this.apiCall('/tool-modules/unload', {
+                                method: 'POST',
+                                body: JSON.stringify({ module: moduleName })
+                            });
+                        } else {
+                            await this.apiCall('/tool-modules/load', {
+                                method: 'POST',
+                                body: JSON.stringify({ modules: [moduleName] })
+                            });
+                        }
+                        
+                        await this.loadToolModules();
+                        await this.loadAvailableTools(); // 这会刷新实际可用的工具列表
+                        this.showNotification(`模块 ${moduleName} ${module.is_loaded ? '卸载' : '加载'}成功`, 'success');
+                    } catch (error) {
+                        console.error('切换模块失败:', error);
+                    }
+                },
+                
+                // 模型管理
+                async loadModels() {
+                    try {
+                        const response = await this.apiCall('/models');
+                        if (response.success && response.data && response.data.provider_details) {
+                            this.availableModels = response.data.provider_details;
+                        } else {
+                            this.availableModels = {};
+                        }
+                    } catch (error) {
+                        console.error('加载模型失败:', error);
+                        this.availableModels = {};
+                    }
+                },
+                
+                async loadCurrentModel() {
+                    try {
+                        const response = await this.apiCall('/models/current');
+                        if (response.success && response.data) {
+                            this.currentModel = response.data;
+                        } else {
+                            this.currentModel = {
+                                provider: '未知',
+                                model: '未配置',
+                                enabled: false
+                            };
+                        }
+                    } catch (error) {
+                        console.error('加载当前模型失败:', error);
+                        this.currentModel = {
+                            provider: '未知',
+                            model: '未配置',
+                            enabled: false
+                        };
+                    }
+                },
+                
+                async switchModel(provider) {
+                    try {
+                        const response = await this.apiCall('/models/switch', {
+                            method: 'POST',
+                            body: JSON.stringify({ provider })
+                        });
+                        
+                        if (response.success) {
+                            await this.loadCurrentModel();
+                            this.showNotification(response.message || `已切换到模型: ${provider}`, 'success');
+                        } else {
+                            this.showNotification('切换模型失败', 'error');
+                        }
+                    } catch (error) {
+                        console.error('切换模型失败:', error);
+                        this.showNotification('切换模型失败: ' + error.message, 'error');
+                    }
+                },
+                
+                // 工具方法
+                handleEnterKey(event) {
+                    // 如果正在使用输入法，不处理回车键
+                    if (this.isComposing) {
+                        return;
+                    }
+                    
+                    if (event.shiftKey) {
+                        // Shift+Enter: 换行
+                        return;
+                    } else {
+                        // Enter: 发送消息
+                        event.preventDefault();
+                        this.sendMessage();
+                    }
+                },
+                
+                // 输入法组合开始
+                handleCompositionStart() {
+                    this.isComposing = true;
+                },
+                
+                // 输入法组合结束
+                handleCompositionEnd() {
+                    this.isComposing = false;
+                },
+                
+                toggleStream() {
+                    this.streamMode = !this.streamMode;
+                    localStorage.setItem('streamMode', this.streamMode);
+                    this.showNotification(this.streamMode ? '已启用流式模式' : '已切换到普通模式');
+                },
+                
+                toggleHideToolResults() {
+                    this.hideToolResults = !this.hideToolResults;
+                    // 保存到本地存储
+                    localStorage.setItem('hideToolResults', this.hideToolResults);
+                    // 强制重新渲染消息以应用过滤
+                    this.$nextTick(() => {
+                        // 触发Alpine.js重新渲染
+                        const messagesContainer = document.getElementById('messagesContainer');
+                        if (messagesContainer) {
+                            messagesContainer.style.display = 'none';
+                            messagesContainer.offsetHeight; // 强制重排
+                            messagesContainer.style.display = '';
+                        }
+                    });
+                },
+                
+                clearChat() {
+                    if (confirm('确定要清空当前对话吗？')) {
+                        this.messages = [];
+                    }
+                },
+                
+                exportChat() {
+                    const chatData = {
+                        session_id: this.currentSessionId,
+                        title: this.currentSessionTitle,
+                        messages: this.messages,
+                        exported_at: new Date().toISOString()
+                    };
+                    
+                    const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `chat_${this.currentSessionId || 'export'}_${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                },
+                
+                // 强制重新渲染所有消息
+                forceRenderAll() {
+                    this.showNotification('正在重新渲染所有消息...', 'info');
+                    
+                    // 强制触发消息重新渲染
+                    this.messages = [...this.messages];
+                    
+                    this.$nextTick(() => {
+                        // 延迟渲染以确保DOM更新
+                        setTimeout(() => {
+                            this.renderMath();
+                        }, 100);
+                        
+                        setTimeout(() => {
+                            window.renderMermaidCharts();
+                        }, 300);
+                        
+                        setTimeout(() => {
+                            this.showNotification('渲染完成！', 'success');
+                        }, 500);
+                    });
+                },
+                
+                // 调试消息内容
+                debugMessages() {
+                    console.log('=== 消息调试信息 ===');
+                    this.messages.forEach((msg, index) => {
+                        console.log(`消息 ${index + 1}:`, {
+                            id: msg.id,
+                            role: msg.role,
+                            contentLength: msg.content ? msg.content.length : 0,
+                            contentPreview: msg.content ? msg.content.substring(0, 200) + '...' : '无内容',
+                            hasToolCall: msg.content ? msg.content.includes('<tool_call>') : false,
+                            hasToolResult: msg.content ? this.isToolResult(msg) : false,
+                            fullContent: msg.content // 完整内容用于调试
+                        });
+                    });
+                    
+                    // 测试工具调用处理
+                    const testMsg = this.messages.find(m => m.content && m.content.includes('<tool_call>'));
+                    if (testMsg) {
+                        console.log('=== 工具调用处理测试 ===');
+                        console.log('原始内容:', testMsg.content);
+                        const formatted = this.formatMessage(testMsg.content, testMsg);
+                        console.log('格式化后:', formatted);
+                    }
+                    
+                    this.showNotification('调试信息已输出到控制台', 'info');
+                },
+                
+                scrollToBottom() {
+                    // 防抖处理，避免频繁调用
+                    if (this.scrollTimeout) {
+                        clearTimeout(this.scrollTimeout);
+                    }
+                    
+                    this.scrollTimeout = setTimeout(() => {
+                        this.$nextTick(() => {
+                            const container = document.getElementById('messagesContainer');
+                            if (container) {
+                                container.scrollTop = container.scrollHeight;
+                            }
+                        });
+                    }, 50); // 50ms防抖
+                },
+                
+                formatDate(dateString) {
+                    if (!dateString) return '';
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                },
+                
+                formatTime(dateString) {
+                    if (!dateString) return '';
+                    const date = new Date(dateString);
+                    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                },
+                
+                formatMessage(content, message = null) {
+                    if (!content) return '';
+                    
+                    // 智能修复无头HTML标签（静默处理）
+                    if (typeof content === 'string') {
+                        if (content.includes('strong class="font-bold">')) {
+                            // 只修复真正缺少<的标签，避免重复添加
+                            content = content.replace(/([^<])strong class="font-bold">/g, '$1<strong class="font-bold">');
+                            content = content.replace(/^strong class="font-bold">/gm, '<strong class="font-bold">');
+                            content = content.replace(/([^<])em class="italic">/g, '$1<em class="italic">');
+                            content = content.replace(/^em class="italic">/gm, '<em class="italic">');
+                        }
+                    }
+                    
+                    let formattedContent = '';
+                    
+                    // 移除聊天区域内的执行步骤显示，改用右下角浮动窗口
+                    
+                    // 处理消息内容
+                    if (typeof content === 'string') {
+                        let processedContent = content;
+                        
+                        // 如果启用了隐藏工具返回值，过滤掉工具结果
+                        if (this.hideToolResults) {
+                            // 移除工具调用分割线
+                            processedContent = processedContent.replace(/={20,}\s*🔧\s*AI工具调用\s*={20,}/g, '');
+                            processedContent = processedContent.replace(/={20,}\s*🔧\s*调用完成\s*={20,}/g, '');
+                            
+                            // 移除TOOL_RESULT块
+                            processedContent = processedContent.replace(/<TOOL_RESULT>[\s\S]*?<\/TOOL_RESULT>/g, '');
+                            
+                            // 移除工具调用结果格式（函数名: xxx 参数: xxx 执行时间: xxx）
+                            processedContent = processedContent.replace(/函数名:\s*[^\n]+\n参数:\s*[^\n]+\n执行时间:\s*[^\n]+/g, '');
+                            
+                            // 清理多余的空行
+                            processedContent = processedContent.replace(/\n{3,}/g, '\n\n');
+                            processedContent = processedContent.trim();
+                        }
+                        
+                                            // 先保护thinking标签，不在这里处理，而是在markdown转换后处理
+                        // 这样可以避免HTML结构被markdown转换破坏
+                    
+                    // 处理工具调用格式 - 可折叠设计
+                    let toolCallCounter = 0;
+                    processedContent = processedContent.replace(/<tool_call>([\s\S]*?)<\/tool_call>/g, function(match, content) {
+                            console.log('处理工具调用:', match); // 调试日志
+                            
+                            // 使用消息ID和计数器生成稳定的工具ID
+                            const messageId = message ? message.id : Date.now();
+                            const toolId = `tool_${messageId}_${++toolCallCounter}`;
+                            
+                            // 提取工具名称和参数
+                            const nameMatch = content.match(/<name>(.*?)<\/name>/);
+                            const toolName = nameMatch ? nameMatch[1] : '未知工具';
+                            
+                            const paramsMatch = content.match(/<parameters>([\s\S]*?)<\/parameters>/);
+                            const params = paramsMatch ? paramsMatch[1].trim() : '无参数';
+                            
+                            console.log('工具调用详情:', { toolId, toolName, params }); // 调试日志
+                            
+                            // 格式化参数显示
+                            let formattedParams = params;
+                            try {
+                                // 尝试解析并格式化JSON
+                                const jsonParams = JSON.parse(params);
+                                formattedParams = JSON.stringify(jsonParams, null, 2);
+                            } catch (e) {
+                                // 如果不是有效JSON，保持原样
+                                formattedParams = params;
+                            }
+                            
+                            const toolCallHTML = `<div class="tool-call">
+                                <div class="tool-call-header" onclick="window.toggleToolParams('${toolId}'); console.log('工具调用头部被点击:', '${toolId}');">
+                                    <div class="tool-name">${toolName}</div>
+                                    <span class="tool-expand-icon" id="${toolId}_icon">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </span>
+                                </div>
+                                <div class="tool-params-content" id="${toolId}_content">
+                                    <div class="tool-params-label">参数:</div>
+                                    <pre class="tool-params">${formattedParams}</pre>
+                                </div>
+                            </div>`;
+                            
+                            console.log('生成的HTML:', toolCallHTML); // 调试日志
+                            return toolCallHTML;
+                        });
+                        
+                        // 处理工具结果（如果没有被过滤）
+                        if (!this.hideToolResults) {
+                            processedContent = processedContent.replace(/<TOOL_RESULT>/g, '<div class="tool-execution-result">');
+                            processedContent = processedContent.replace(/<\/TOOL_RESULT>/g, '</div>');
+                        }
+                        
+                        // 转换Markdown
+                        processedContent = this.convertMarkdown(processedContent);
+                        
+                        // 在markdown转换后处理thinking标签，避免HTML结构被破坏
+                        let thinkingCounter = 0;
+                        processedContent = processedContent.replace(/<thinking>([\s\S]*?)<\/thinking>/g, function(match, thinkingContent) {
+                            thinkingCounter++;
+                            const messageId = message ? message.id : Date.now();
+                            const thinkingId = `thinking-${messageId}-${thinkingCounter}`;
+                            
+                            return `<div class="thinking-section bg-blue-50 border border-blue-200 rounded-lg my-4 overflow-hidden">
+                                <div class="thinking-header bg-blue-100 px-4 py-3 cursor-pointer hover:bg-blue-150 transition-colors select-none" 
+                                     onclick="window.toggleThinking('${thinkingId}')">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <span class="text-blue-600 mr-2">💭</span>
+                                            <span class="text-blue-800 font-medium text-sm">AI思考过程</span>
+                                            <span class="text-blue-500 text-xs ml-2">(点击展开/收起)</span>
+                                        </div>
+                                        <svg id="${thinkingId}-icon" class="w-4 h-4 text-blue-600 transform transition-transform duration-200" 
+                                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div id="${thinkingId}-content" class="thinking-content px-4 py-3 border-t border-blue-200 transition-all duration-200" style="display: none;">
+                                    <div class="text-blue-700 text-sm whitespace-pre-wrap leading-relaxed">${thinkingContent.trim()}</div>
+                                </div>
+                            </div>`;
+                        });
+                        
+                        // 静默修复convertMarkdown之后的HTML片段问题
+                        if (processedContent.includes('strong class="font-bold">')) {
+                            processedContent = processedContent.replace(/([^<])strong class="font-bold">/g, '$1<strong class="font-bold">');
+                            processedContent = processedContent.replace(/^strong class="font-bold">/gm, '<strong class="font-bold">');
+                        }
+                        
+                        // 最后检查：如果是工具调用结果且没有被包装，才包装
+                        if (message && message.role === 'user' && this.isToolResult(message)) {
+                            if (!processedContent.includes('<div class="tool-execution-result">')) {
+                                processedContent = `<div class="tool-execution-result">${processedContent}</div>`;
+                            }
+                        }
+                        
+                        formattedContent += processedContent;
+                    }
+                    
+                    return formattedContent;
+                },
+                
+                // 判断消息对齐方式
+                getMessageAlignment(message) {
+                    if (message.role === 'user') {
+                        // 检查是否是工具调用结果
+                        const isToolResult = this.isToolResult(message);
+                        
+                        if (isToolResult) {
+                            // 工具调用结果显示在左边（AI侧）
+                            return 'flex justify-start';
+                        }
+                        
+                        // 普通用户消息显示在右边
+                        return 'flex justify-end';
+                    }
+                    
+                    // AI消息显示在左边
+                    return 'flex justify-start';
+                },
+
+                // 检查是否是工具调用结果
+                isToolResult(message) {
+                    const toolResultPattern = /<TOOL_RESULT>\s*([\s\S]*?)\s*<\/TOOL_RESULT>/;
+                    const toolCallPattern1 = /^函数名:\s*(.+?)\n参数:\s*(.+?)\n执行时间:\s*(.+?)(?:\n|$)/;
+                    const toolCallPattern2 = /^函数名:\s*(.+?)\s+参数:\s*(.+?)\s+执行时间:\s*(.+?)(?:\n|$)/;
+                    const toolErrorPattern = /^函数名:\s*(.+?)\n参数:\s*(.+?)\n执行时间:\s*(.+?)\n执行失败/;
+                    const toolFailurePattern = /错误码:\s*\w+\n报错信息:/;
+                    
+                    return toolResultPattern.test(message.content) || 
+                           toolCallPattern1.test(message.content) || 
+                           toolCallPattern2.test(message.content) ||
+                           toolErrorPattern.test(message.content) ||
+                           toolFailurePattern.test(message.content);
+                },
+
+                // 获取头像样式
+                getAvatarClass(message) {
+                    if (message.role === 'user') {
+                        const isToolResult = this.isToolResult(message);
+                        if (isToolResult) {
+                            // 工具调用结果使用AI头像样式
+                            return 'bg-purple-500';
+                        }
+                        return 'bg-blue-500';
+                    }
+                    return 'bg-gray-100';
+                },
+
+                // 获取头像图标
+                getAvatarIcon(message) {
+                    if (message.role === 'user') {
+                        const isToolResult = this.isToolResult(message);
+                        if (isToolResult) {
+                            // 工具调用结果使用工具图标
+                            return 'fas fa-tools text-white';
+                        }
+                        return 'fas fa-user text-white';
+                    }
+                    return 'fas fa-robot text-gray-600';
+                },
+
+                // 获取消息发送者名称
+                getMessageSender(message) {
+                    if (message.role === 'user') {
+                        const isToolResult = this.isToolResult(message);
+                        if (isToolResult) {
+                            // 工具调用结果显示为工具执行
+                            return '工具执行';
+                        }
+                        return '你';
+                    }
+                    return 'Alice ';
+                },
+                
+                getMessageContainerClass(message) {
+                    if (message.role === 'user') {
+                        const isToolResult = this.isToolResult(message);
+                        
+                        if (isToolResult) {
+                            // 如果隐藏工具返回值，完全隐藏这类消息
+                            if (this.hideToolResults) {
+                                return 'hidden';
+                            }
+                            return 'bg-white border border-gray-200'; // 使用白色背景，与AI消息一致
+                        }
+                        
+                        return 'bg-blue-600 text-white';
+                    }
+                    
+                    return 'bg-white border border-gray-200';
+                },
+                
+                showNotification(message, type = 'info') {
+                    this.notification = {
+                        show: true,
+                        message: message,
+                        type: type
+                    };
+                    
+                    setTimeout(() => {
+                        this.notification.show = false;
+                    }, 3000);
+                },
+                
+                clearAllSessions() {
+                    if (!confirm('确定要清空所有会话吗？此操作不可撤销！')) return;
+                    
+                    // 二次确认
+                    if (!confirm(`您有 ${this.sessions.length} 个会话，确定要全部删除吗？`)) return;
+                    
+                    this.isLoading = true;
+                    
+                    // 并行删除所有会话
+                    const deletePromises = this.sessions.map(session => 
+                        this.apiCall(`/sessions/${session.id}`, { method: 'DELETE' })
+                            .catch(error => {
+                                console.error(`删除会话 ${session.id} 失败:`, error);
+                                return { error: true, sessionId: session.id };
+                            })
+                    );
+                    
+                    Promise.all(deletePromises)
+                        .then(results => {
+                            const failedDeletes = results.filter(result => result && result.error);
+                            
+                            if (failedDeletes.length > 0) {
+                                this.showNotification(`删除了 ${this.sessions.length - failedDeletes.length} 个会话，${failedDeletes.length} 个失败`, 'error');
+                            } else {
+                                this.showNotification('所有会话已清空', 'success');
+                            }
+                            
+                            // 重新加载会话列表
+                            return this.loadSessions();
+                        })
+                        .then(() => {
+                            // 清空当前会话状态
+                            this.currentSessionId = null;
+                            this.currentSessionTitle = '';
+                            this.messages = [];
+                        })
+                        .catch(error => {
+                            console.error('清空会话失败:', error);
+                            this.showNotification('清空会话失败: ' + error.message, 'error');
+                        })
+                        .finally(() => {
+                            this.isLoading = false;
+                        });
+                },
+                
+                exportAllSessions() {
+                    if (this.sessions.length === 0) {
+                        this.showNotification('没有会话可导出', 'error');
+                        return;
+                    }
+                    
+                    this.isLoading = true;
+                    
+                    // 获取所有会话的详细数据
+                    const sessionPromises = this.sessions.map(session => 
+                        this.apiCall(`/sessions/${session.id}`)
+                            .then(response => ({
+                                ...session,
+                                messages: response.messages || []
+                            }))
+                            .catch(error => {
+                                console.error(`获取会话 ${session.id} 失败:`, error);
+                                return {
+                                    ...session,
+                                    messages: [],
+                                    error: true
+                                };
+                            })
+                    );
+                    
+                    Promise.all(sessionPromises)
+                        .then(sessionsWithMessages => {
+                            const exportData = {
+                                exported_at: new Date().toISOString(),
+                                total_sessions: sessionsWithMessages.length,
+                                sessions: sessionsWithMessages
+                            };
+                            
+                            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `ai_chat_sessions_${new Date().toISOString().split('T')[0]}.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                            
+                            this.showNotification(`已导出 ${sessionsWithMessages.length} 个会话`, 'success');
+                        })
+                        .catch(error => {
+                            console.error('导出会话失败:', error);
+                            this.showNotification('导出会话失败: ' + error.message, 'error');
+                        })
+                        .finally(() => {
+                            this.isLoading = false;
+                        });
+                },
+                
+                convertMarkdown(text) {
+                    if (!text) return '';
+                    
+                    // 保护已经处理过的工具调用HTML结构
+                    const toolCallBlocks = new Map();
+                    let toolCallCounter = 0;
+                    
+                    // 修复无头的HTML标签（缺少<的情况）
+                    // 使用更宽松的匹配模式，处理行首或空白后的无头标签
+                    text = text.replace(/(^|\s|>)strong class="font-bold">/g, '$1<strong class="font-bold">');
+                    text = text.replace(/(^|\s|>)em class="italic">/g, '$1<em class="italic">');
+                    text = text.replace(/(^|\s|>)del class="line-through text-gray-500">/g, '$1<del class="line-through text-gray-500">');
+                    text = text.replace(/(^|\s|>)code class="[^"]*">/g, function(match, prefix) { 
+                        return prefix + '<' + match.substring(prefix.length); 
+                    });
+                    text = text.replace(/(^|\s|>)h[1-6] class="[^"]*">/g, function(match, prefix) { 
+                        return prefix + '<' + match.substring(prefix.length); 
+                    });
+                    text = text.replace(/(^|\s|>)a href="[^"]*"[^>]*>/g, function(match, prefix) { 
+                        return prefix + '<' + match.substring(prefix.length); 
+                    });
+                    text = text.replace(/(^|\s|>)blockquote class="[^"]*">/g, function(match, prefix) { 
+                        return prefix + '<' + match.substring(prefix.length); 
+                    });
+                    
+                    // thinking标签现在在markdown转换后处理，所以这里不需要保护
+
+                    // 保护已处理的工具调用HTML结构 - 这是关键修复
+                    // 使用更精确的匹配模式，确保完整匹配工具调用结构
+                    text = text.replace(/<div class="tool-call">[\s\S]*?<div class="tool-params-content"[^>]*>[\s\S]*?<\/div>[\s\S]*?<\/div>/g, function(match) {
+                        const placeholder = `XTOOLCALLHTMLX${toolCallCounter}XTOOLCALLHTMLX`;
+                        toolCallBlocks.set(placeholder, match);
+                        console.log(`保护工具调用HTML ${toolCallCounter}:`, match.substring(0, 100) + '...');
+                        toolCallCounter++;
+                        return placeholder;
+                    });
+                    
+                    // 保护原始的工具调用标签，避免被Markdown处理破坏  
+                    text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, function(match) {
+                        const placeholder = `XTOOLCALLRAWX${toolCallCounter}XTOOLCALLRAWX`;
+                        toolCallBlocks.set(placeholder, match);
+                        toolCallCounter++;
+                        return placeholder;
+                    });
+                    
+                    // 首先保护Mermaid代码块，避免被后续处理破坏
+                    const mermaidBlocks = new Map();
+                    let mermaidCounter = 0;
+                    
+                    text = text.replace(/```mermaid\n([\s\S]*?)```/g, function(match, content) {
+                        const placeholder = `XMERMAIDBLOCKX${mermaidCounter}XMERMAIDBLOCKX`;
+                        const mermaidId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+                        const cleanContent = content.trim();
+                        
+                        const replacement = `<div class="mermaid-container" id="container-${mermaidId}">
+                            <div class="mermaid-toolbar">
+                                <button class="mermaid-btn" onclick="downloadMermaidSVG('${mermaidId}')">
+                                    <i class="fas fa-download"></i> SVG
+                                </button>
+                                <button class="mermaid-btn" onclick="showPngSizeDialog('${mermaidId}')">
+                                    <i class="fas fa-image"></i> PNG
+                                </button>
+                            </div>
+                            <div class="mermaid" id="${mermaidId}">${cleanContent}</div>
+                        </div>`;
+                        
+                        mermaidBlocks.set(placeholder, replacement);
+                        mermaidCounter++;
+                        return placeholder;
+                    });
+                    
+
+                    
+                    // 处理 LaTeX 数学公式 - 只处理严格成对的标记
+                    const mathReplacements = new Map();
+                    let mathCounter = 0;
+                    
+                    // 处理块级数学公式 $$...$$（严格成对匹配）
+                    text = text.replace(/\$\$([\s\S]*?)\$\$/g, function(match, content) {
+                        const placeholder = `XMATHBLOCKX${mathCounter}XMATHBLOCKX`;
+                        // 清理内容并转义LaTeX特殊字符
+                        const cleanContent = content.trim()
+                            .replace(/#/g, '\\#')
+                            .replace(/&/g, '\\&')
+                            .replace(/%/g, '\\%')
+                            .replace(/\$/g, '\\$'); // 转义内部的$符号
+                        mathReplacements.set(placeholder, `<div class="math-display">\\[${cleanContent}\\]</div>`);
+                        mathCounter++;
+                        return placeholder;
+                    });
+                    
+                    // 处理块级数学公式 \[...\]（严格成对匹配）
+                    text = text.replace(/\\\[([\s\S]*?)\\\]/g, function(match, content) {
+                        const placeholder = `XMATHBLOCKX${mathCounter}XMATHBLOCKX`;
+                        // 清理内容并转义LaTeX特殊字符
+                        const cleanContent = content.trim()
+                            .replace(/#/g, '\\#')
+                            .replace(/&/g, '\\&')
+                            .replace(/%/g, '\\%');
+                        mathReplacements.set(placeholder, `<div class="math-display">\\[${cleanContent}\\]</div>`);
+                        mathCounter++;
+                        return placeholder;
+                    });
+                    
+                    // 完全禁用单个 $ 符号的数学公式处理
+                    // 只保留明确的数学公式标记格式：\(...\)
+                    // 如果需要行内数学公式，请使用 \(公式内容\) 格式
+                    // 这样可以完全避免与货币符号($)的冲突
+                    
+                    // 处理行内数学公式 \(...\)（严格成对匹配）
+                    text = text.replace(/\\\(([\s\S]*?)\\\)/g, function(match, content) {
+                        const placeholder = `XMATHINLINEX${mathCounter}XMATHINLINEX`;
+                        // 清理内容并转义LaTeX特殊字符
+                        const cleanContent = content.trim()
+                            .replace(/#/g, '\\#')
+                            .replace(/&/g, '\\&')
+                            .replace(/%/g, '\\%');
+                        mathReplacements.set(placeholder, `<span class="math-inline">\\(${cleanContent}\\)</span>`);
+                        mathCounter++;
+                        return placeholder;
+                    });
+                    
+                    // 处理普通代码块（Mermaid已在前面处理）
+                    text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, '<div class="code-block bg-gray-50 border border-gray-200 rounded-lg p-4 my-3 overflow-x-auto"><pre class="text-sm text-gray-800 whitespace-pre"><code>$2</code></pre></div>');
+                    
+                    // 处理表格
+                    text = text.replace(/\n(\|[^\n]+\|)\n(\|[-:\s|]+\|)\n((?:\|[^\n]+\|\n?)*)/g, function(match, header, separator, rows) {
+                        let tableHtml = '<div class="overflow-x-auto my-4"><table class="min-w-full border border-gray-200 rounded-lg">';
+                        
+                        // 处理表头
+                        tableHtml += '<thead class="bg-gray-50">';
+                        tableHtml += '<tr>';
+                        const headerCells = header.split('|').slice(1, -1);
+                        headerCells.forEach(cell => {
+                            tableHtml += `<th class="px-4 py-2 border-b border-gray-200 text-left text-sm font-medium text-gray-700">${cell.trim()}</th>`;
+                        });
+                        tableHtml += '</tr>';
+                        tableHtml += '</thead>';
+                        
+                        // 处理表体
+                        tableHtml += '<tbody>';
+                        const rowLines = rows.trim().split('\n');
+                        rowLines.forEach((row, index) => {
+                            if (row.trim()) {
+                                tableHtml += `<tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">`;
+                                const cells = row.split('|').slice(1, -1);
+                                cells.forEach(cell => {
+                                    tableHtml += `<td class="px-4 py-2 border-b border-gray-200 text-sm text-gray-700">${cell.trim()}</td>`;
+                                });
+                                tableHtml += '</tr>';
+                            }
+                        });
+                        tableHtml += '</tbody>';
+                        tableHtml += '</table></div>';
+                        
+                        return '\n' + tableHtml + '\n';
+                    });
+                    
+                    // 处理标题 (H1-H6)
+                    text = text.replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold text-gray-800 mt-4 mb-2">$1</h3>');
+                    text = text.replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold text-gray-800 mt-5 mb-3">$1</h2>');
+                    text = text.replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-gray-800 mt-6 mb-4">$1</h1>');
+                    text = text.replace(/^#### (.*$)/gm, '<h4 class="text-base font-semibold text-gray-800 mt-3 mb-2">$1</h4>');
+                    text = text.replace(/^##### (.*$)/gm, '<h5 class="text-sm font-semibold text-gray-800 mt-2 mb-1">$1</h5>');
+                    text = text.replace(/^###### (.*$)/gm, '<h6 class="text-xs font-semibold text-gray-800 mt-2 mb-1">$1</h6>');
+                    
+                    // 处理粗体和斜体 - 使用懒惰匹配避免贪婪匹配问题
+                    text = text.replace(/\*\*([\s\S]*?)\*\*/g, function(match, content) {
+                        return `<strong class="font-bold">${content}</strong>`;
+                    });
+                    text = text.replace(/\*([^*\n]+?)\*/g, '<em class="italic">$1</em>');
+                    text = text.replace(/__([\s\S]*?)__/g, '<strong class="font-bold">$1</strong>');
+                    text = text.replace(/_([^_\n]+?)_/g, '<em class="italic">$1</em>');
+                    
+                    // 处理删除线
+                    text = text.replace(/~~([^~]+)~~/g, '<del class="line-through text-gray-500">$1</del>');
+                    
+                    // 处理列表 - 更智能的方式
+                    // 先标记无序列表项
+                    text = text.replace(/^[\s]*[-*+] (.+$)/gm, '___UL_ITEM___$1');
+                    // 先标记有序列表项  
+                    text = text.replace(/^[\s]*\d+\. (.+$)/gm, '___OL_ITEM___$1');
+                    
+                    // 处理连续的无序列表项
+                    text = text.replace(/(___UL_ITEM___[^\n]+(?:\n___UL_ITEM___[^\n]+)*)/g, function(match) {
+                        const items = match.split('\n').map(item => {
+                            if (item.startsWith('___UL_ITEM___')) {
+                                return `<li class="ml-4 mb-1">• ${item.substring(13)}</li>`;
+                            }
+                            return item;
+                        }).join('');
+                        return `<ul class="my-2">${items}</ul>`;
+                    });
+                    
+                    // 处理连续的有序列表项
+                    text = text.replace(/(___OL_ITEM___[^\n]+(?:\n___OL_ITEM___[^\n]+)*)/g, function(match) {
+                        const items = match.split('\n').map(item => {
+                            if (item.startsWith('___OL_ITEM___')) {
+                                return `<li class="ml-4 mb-1">${item.substring(13)}</li>`;
+                            }
+                            return item;
+                        }).join('');
+                        return `<ol class="my-2 list-decimal list-inside">${items}</ol>`;
+                    });
+                    
+                    // 处理引用块
+                    text = text.replace(/^> (.+$)/gm, '<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-2 bg-blue-50 italic text-gray-700">$1</blockquote>');
+                    
+                    // 处理行内代码
+                    text = text.replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-red-600">$1</code>');
+                    
+                    // 处理链接
+                    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">$1</a>');
+                    text = text.replace(/(^|[^">])(https?:\/\/[^\s<"]+)(?![^<]*>)/g, '$1<a href="$2" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">$2</a>');
+                    
+                    // 处理水平线
+                    text = text.replace(/^[-*_]{3,}$/gm, '<hr class="my-4 border-gray-300">');
+                    
+                    // 更智能的段落和换行处理
+                    // 先处理双换行符（段落分隔）
+                    const paragraphs = text.split(/\n\s*\n/);
+                    const processedParagraphs = paragraphs.map(paragraph => {
+                        if (paragraph.trim()) {
+                            // 检查段落是否以块级元素开始或包含块级元素
+                            const blockElementRegex = /^<(h[1-6]|ul|ol|div|table|hr|blockquote|pre)[\s>]|<\/(h[1-6]|ul|ol|div|table|hr|blockquote|pre)>|<(ul|ol|div|table|hr|blockquote|pre)[\s>]/;
+                            const containsBlockElements = blockElementRegex.test(paragraph);
+                            
+                            if (containsBlockElements) {
+                                // 对于包含块级元素的段落，保持原始格式，只替换单个换行为<br>
+                                return paragraph.replace(/\n/g, '<br>');
+                            } else {
+                                // 对于普通段落，清理多余空白但保持HTML标签完整
+                                const cleanParagraph = paragraph.replace(/\n\s+/g, '\n').replace(/\n/g, '<br>').trim();
+                                return `<p class="mb-3">${cleanParagraph}</p>`;
+                            }
+                        }
+                        return '';
+                    }).filter(p => p);
+                    
+                    text = processedParagraphs.join('\n');
+                    
+                    // 最终修复无头标签
+                    if (text.includes('strong class="font-bold">')) {
+                        // 智能修复，避免重复添加<
+                        text = text.replace(/([^<])strong class="font-bold">/g, '$1<strong class="font-bold">');
+                        text = text.replace(/^strong class="font-bold">/gm, '<strong class="font-bold">');
+                    }
+                    
+                    // 恢复数学公式占位符
+                    for (const [placeholder, replacement] of mathReplacements) {
+                        text = text.replaceAll(placeholder, replacement);
+                    }
+                    
+                    // 恢复Mermaid占位符
+                    for (const [placeholder, replacement] of mermaidBlocks) {
+                        text = text.replaceAll(placeholder, replacement);
+                    }
+                    
+                    // 恢复工具调用占位符
+                    for (const [placeholder, replacement] of toolCallBlocks) {
+                        text = text.replaceAll(placeholder, replacement);
+                    }
+                    
+                    return text;
+                },
+                
+                // 侧边栏控制
+                toggleSidebar() {
+                    this.sidebarCollapsed = !this.sidebarCollapsed;
+                },
+                
+                // 通知系统
+                showNotification(message, type = 'info') {
+                    this.notification = {
+                        show: true,
+                        message: message,
+                        type: type
+                    };
+                    
+                    setTimeout(() => {
+                        this.notification.show = false;
+                    }, 3000);
+                },
+                
+                // 更新执行过程
+                updateExecutionProgress(data) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString('zh-CN', { 
+                        hour12: false, 
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        second: '2-digit' 
+                    });
+                    
+                    switch (data.type) {
+                        case 'start':
+                            this.executionSteps = [{
+                                type: 'start',
+                                message: data.message,
+                                timestamp: timeStr,
+                                icon: '🚀'
+                            }];
+                            break;
+                            
+                        case 'title_generating':
+                            this.executionSteps.push({
+                                type: 'title_generating',
+                                message: data.message,
+                                timestamp: timeStr,
+                                icon: '🎯'
+                            });
+                            break;
+                            
+                        case 'title_generated':
+                            this.executionSteps.push({
+                                type: 'title_generated',
+                                message: `生成标题: ${data.title}`,
+                                timestamp: timeStr,
+                                icon: '✨'
+                            });
+                            break;
+                            
+                        case 'thinking':
+                            this.executionSteps.push({
+                                type: 'thinking',
+                                message: data.message || '正在思考...',
+                                content: data.content || '',
+                                timestamp: timeStr,
+                                icon: '🧠'
+                            });
+                            break;
+                            
+                        case 'tool_start':
+                            // 先尝试从当前消息中提取工具调用信息
+                            this.extractToolCallFromCurrentMessage();
+                            
+                            let toolInfo = data.message;
+                            if (this.currentToolCall && this.currentToolCall.name !== '正在执行...') {
+                                toolInfo = `开始执行工具: ${this.currentToolCall.name}`;
+                                if (this.currentToolCall.params && this.currentToolCall.params !== '无参数') {
+                                    // 截取参数的前50个字符用于显示
+                                    const shortParams = this.currentToolCall.params.length > 50 ? 
+                                        this.currentToolCall.params.substring(0, 50) + '...' : 
+                                        this.currentToolCall.params;
+                                    toolInfo += `\n参数: ${shortParams}`;
+                                }
+                            }
+                            
+                            this.executionSteps.push({
+                                type: 'tool_start',
+                                message: toolInfo,
+                                timestamp: timeStr,
+                                icon: '🔧',
+                                toolCall: this.currentToolCall // 保存工具调用信息
+                            });
+                            break;
+                            
+                        case 'tool_result':
+                            let resultMessage = '工具执行完成';
+                            if (this.currentToolCall && this.currentToolCall.name !== '正在执行...') {
+                                resultMessage = `${this.currentToolCall.name} 执行完成`;
+                            }
+                            
+                            this.executionSteps.push({
+                                type: 'tool_result',
+                                message: resultMessage,
+                                timestamp: timeStr,
+                                icon: '✅'
+                            });
+                            this.currentToolCall = null;
+                            break;
+                            
+                        case 'tool_end':
+                            this.executionSteps.push({
+                                type: 'tool_end',
+                                message: data.message,
+                                timestamp: timeStr,
+                                icon: '🏁'
+                            });
+                            break;
+                            
+                        case 'complete':
+                            this.executionSteps.push({
+                                type: 'complete',
+                                message: data.message,
+                                timestamp: timeStr,
+                                icon: '✅'
+                            });
+                            // 对话完成后，延迟隐藏执行过程
+                            setTimeout(() => {
+                                this.showExecutionProgress = false;
+                                this.executionSteps = [];
+                                this.currentToolCall = null;
+
+                            }, 2000); // 2秒后隐藏，让用户能看到完成状态
+                            break;
+                            
+                        case 'error':
+                            this.executionSteps.push({
+                                type: 'error',
+                                message: data.message,
+                                timestamp: timeStr,
+                                icon: '❌'
+                            });
+                            // 错误时也延迟隐藏执行过程
+                            setTimeout(() => {
+                                this.showExecutionProgress = false;
+                                this.executionSteps = [];
+                                this.currentToolCall = null;
+                            }, 3000); // 3秒后隐藏，让用户能看到错误信息
+                            break;
+                    }
+                    
+                    // 保留所有执行步骤，便于查看完整的执行过程
+                },
+                
+                // 解析工具调用信息
+                parseToolCall(data) {
+                    // 这里可以从data中提取工具调用信息
+                    // 暂时使用静态信息，后续可以从流中解析
+                    if (data.type === 'tool_start') {
+                        this.currentToolCall = {
+                            name: '正在执行...',
+                            params: '参数解析中...'
+                        };
+                    }
+                },
+                
+                // 从当前AI消息中提取最新的工具调用信息
+                extractToolCallFromCurrentMessage() {
+                    // 查找当前正在构建的AI消息
+                    const currentAiMessage = this.messages[this.messages.length - 1];
+                    if (!currentAiMessage || currentAiMessage.role !== 'assistant') return;
+                    
+                    this.extractToolCallFromMessage(currentAiMessage);
+                },
+                
+                // 从消息内容中提取当前工具调用信息
+                extractToolCallFromMessage(message) {
+                    if (!message || !message.content) return;
+                    
+                    // 查找最新的工具调用
+                    const toolCallRegex = /<tool_call>([\s\S]*?)<\/tool_call>/g;
+                    let match;
+                    let lastToolCall = null;
+                    
+                    while ((match = toolCallRegex.exec(message.content)) !== null) {
+                        const content = match[1];
+                        const nameMatch = content.match(/<name>(.*?)<\/name>/);
+                        const paramsMatch = content.match(/<parameters>([\s\S]*?)<\/parameters>/);
+                        
+                        if (nameMatch) {
+                            lastToolCall = {
+                                name: nameMatch[1],
+                                params: paramsMatch ? paramsMatch[1].trim() : '无参数'
+                            };
+                        }
+                    }
+                    
+                    if (lastToolCall) {
+                        this.currentToolCall = lastToolCall;
+                    }
+                },
+                
+                // 导出会话
+                async exportAllSessions() {
+                    this.isLoading = true;
+                    
+                    try {
+                        const sessionPromises = this.sessions.map(session =>
+                            this.apiCall(`/sessions/${session.id}`)
+                                .then(response => ({
+                                    ...session,
+                                    messages: response.messages || []
+                                }))
+                                .catch(error => {
+                                    console.error(`获取会话 ${session.id} 失败:`, error);
+                                    return {
+                                        ...session,
+                                        messages: [],
+                                        error: true
+                                    };
+                                })
+                        );
+                        
+                        const sessionsWithMessages = await Promise.all(sessionPromises);
+                        
+                        const exportData = {
+                            exported_at: new Date().toISOString(),
+                            total_sessions: sessionsWithMessages.length,
+                            sessions: sessionsWithMessages
+                        };
+                        
+                        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `ai_chat_sessions_${new Date().toISOString().split('T')[0]}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        
+                        this.showNotification(`已导出 ${sessionsWithMessages.length} 个会话`, 'success');
+                    } catch (error) {
+                        console.error('导出会话失败:', error);
+                        this.showNotification('导出会话失败: ' + error.message, 'error');
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                
+                // 记忆管理
+                async loadMemories() {
+                    try {
+                        const response = await this.apiCall('/tools/call', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                tool_name: 'read_all_memories',
+                                parameters: {}
+                            })
+                        });
+                        
+                        if (response.success && response.result) {
+                            // 解析记忆数据
+                            this.parseMemoriesFromResult(response.result);
+                        } else {
+                            this.memories = [];
+                        }
+                        this.filterMemories();
+                    } catch (error) {
+                        console.error('加载记忆失败:', error);
+                        this.memories = [];
+                        this.filteredMemories = [];
+                    }
+                },
+                
+                parseMemoriesFromResult(result) {
+                    // 解析工具返回的记忆数据
+                    try {
+                        // 更精确的正则表达式，处理多行内容
+                        const memoryPattern = /🆔 ID: (\d+)\n📅 时间: ([^\n]+)\n📂 类别: ([^\n]+)\n(?:🏷️\s+标签: ([^\n]+)\n)?📝 内容: ([\s\S]*?)(?=\n------------------------------|\n🆔 ID:|\n$|$)/g;
+                        
+                        const memories = [];
+                        const seenIds = new Set(); // 用于去重
+                        let match;
+                        
+                        while ((match = memoryPattern.exec(result)) !== null) {
+                            const [, id, time, category, tags, content] = match;
+                            const memoryId = parseInt(id);
+                            
+                            // 去重处理
+                            if (seenIds.has(memoryId)) {
+                                continue;
+                            }
+                            seenIds.add(memoryId);
+                            
+                            memories.push({
+                                id: memoryId,
+                                created_date: time,
+                                category: category.trim(),
+                                tags: tags ? tags.split(', ').map(t => t.trim()).filter(t => t) : [],
+                                content: content.trim().replace(/\n+$/, '') // 移除尾部换行符
+                            });
+                        }
+                        
+                        // 按ID倒序排列（最新的在前面）
+                        memories.sort((a, b) => b.id - a.id);
+                        
+                        this.memories = memories;
+                        console.log('解析到记忆数量:', memories.length);
+                        console.log('记忆示例:', memories.slice(0, 2));
+                    } catch (error) {
+                        console.error('解析记忆数据失败:', error);
+                        this.memories = [];
+                    }
+                },
+                
+                filterMemories() {
+                    if (!this.memoryFilter) {
+                        this.filteredMemories = [...this.memories];
+                    } else {
+                        this.filteredMemories = this.memories.filter(memory => 
+                            memory.category === this.memoryFilter
+                        );
+                    }
+                },
+                
+                async deleteMemory(memoryId) {
+                    if (!confirm(`确定要删除记忆 ID:${memoryId} 吗？此操作不可撤销！`)) {
+                        return;
+                    }
+                    
+                    try {
+                        const response = await this.apiCall('/tools/call', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                tool_name: 'delete_memory',
+                                parameters: {
+                                    memory_id: memoryId
+                                }
+                            })
+                        });
+                        
+                        if (response.success) {
+                            this.showNotification('记忆删除成功', 'success');
+                            await this.loadMemories(); // 重新加载记忆列表
+                        } else {
+                            this.showNotification('删除记忆失败', 'error');
+                        }
+                    } catch (error) {
+                        console.error('删除记忆失败:', error);
+                        this.showNotification('删除记忆失败: ' + error.message, 'error');
+                    }
+                },
+                
+                async clearAllMemories() {
+                    if (!confirm('确定要清空所有记忆吗？此操作不可撤销！')) {
+                        return;
+                    }
+                    
+                    // 二次确认
+                    if (!confirm(`您有 ${this.memories.length} 条记忆，确定要全部删除吗？`)) {
+                        return;
+                    }
+                    
+                    this.isLoading = true;
+                    
+                    try {
+                        // 并行删除所有记忆
+                        const deletePromises = this.memories.map(memory =>
+                            this.apiCall('/tools/call', {
+                                method: 'POST',
+                                body: JSON.stringify({
+                                    tool_name: 'delete_memory',
+                                    parameters: {
+                                        memory_id: memory.id
+                                    }
+                                })
+                            }).catch(error => {
+                                console.error(`删除记忆 ${memory.id} 失败:`, error);
+                                return { error: true, memoryId: memory.id };
+                            })
+                        );
+                        
+                        const results = await Promise.all(deletePromises);
+                        const failedDeletes = results.filter(result => result && result.error);
+                        
+                        if (failedDeletes.length > 0) {
+                            this.showNotification(`删除了 ${this.memories.length - failedDeletes.length} 条记忆，${failedDeletes.length} 条失败`, 'error');
+                        } else {
+                            this.showNotification('所有记忆已清空', 'success');
+                        }
+                        
+                        // 重新加载记忆列表
+                        await this.loadMemories();
+                    } catch (error) {
+                        console.error('清空记忆失败:', error);
+                        this.showNotification('清空记忆失败: ' + error.message, 'error');
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                
+                getCategoryColor(category) {
+                    const colors = {
+                        'general': 'bg-gray-500',
+                        'user_preference': 'bg-blue-500',
+                        'project_info': 'bg-green-500',
+                        'task': 'bg-orange-500',
+                        'knowledge': 'bg-purple-500',
+                        'conversation': 'bg-pink-500'
+                    };
+                    return colors[category] || 'bg-gray-500';
+                },
+                
+                getCategoryName(category) {
+                    const names = {
+                        'general': '一般',
+                        'user_preference': '偏好',
+                        'project_info': '项目',
+                        'task': '任务',
+                        'knowledge': '知识',
+                        'conversation': '对话'
+                    };
+                    return names[category] || '未知';
+                },
+                
+                formatMemoryDate(dateString) {
+                    if (!dateString) return '';
+                    try {
+                        // 如果已经是格式化的日期字符串，直接返回
+                        if (dateString.includes('/') || dateString.includes('-')) {
+                            return dateString;
+                        }
+                        const date = new Date(dateString);
+                        return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                    } catch (error) {
+                        return dateString; // 如果解析失败，返回原始字符串
+                    }
+                },
+                
+                // 消息分组逻辑 - 当隐藏工具返回值时合并连续的同类型消息
+                getGroupedMessages() {
+                    if (!this.hideToolResults) {
+                        // 如果不隐藏工具返回值，每条消息都是独立的组
+                        return this.messages.map(message => ({
+                            id: message.id,
+                            messages: [message]
+                        }));
+                    }
+                    
+                    const groups = [];
+                    let currentGroup = null;
+                    
+                    for (const message of this.messages) {
+                        // 跳过被隐藏的工具返回值消息
+                        if (this.getMessageContainerClass(message) === 'hidden') {
+                            continue;
+                        }
+                        
+                        const messageType = this.getMessageType(message);
+                        const alignment = this.getMessageAlignment(message);
+                        
+                        // 如果当前组为空，或者消息类型/对齐方式不同，创建新组
+                        if (!currentGroup || 
+                            currentGroup.type !== messageType || 
+                            currentGroup.alignment !== alignment) {
+                            
+                            currentGroup = {
+                                id: `group_${message.id}`,
+                                type: messageType,
+                                alignment: alignment,
+                                messages: [message]
+                            };
+                            groups.push(currentGroup);
+                        } else {
+                            // 否则将消息添加到当前组
+                            currentGroup.messages.push(message);
+                        }
+                    }
+                    
+                    return groups;
+                },
+                
+                // 获取消息类型用于分组
+                getMessageType(message) {
+                    if (message.role === 'user') {
+                        return this.isToolResult(message) ? 'tool_result' : 'user';
+                    }
+                    return 'assistant';
+                }
+            }
+        }
+        
+        // thinking内容折叠/展开函数
+        window.toggleThinking = function(thinkingId) {
+            console.log('toggleThinking 被调用，thinkingId:', thinkingId);
+            
+            const content = document.getElementById(thinkingId + '-content');
+            const icon = document.getElementById(thinkingId + '-icon');
+            
+            console.log('找到的thinking元素:', { content, icon });
+            
+            if (content && icon) {
+                const isVisible = content.style.display !== 'none';
+                console.log('当前显示状态:', isVisible);
+                
+                if (isVisible) {
+                    // 收起
+                    content.style.display = 'none';
+                    icon.style.transform = 'rotate(0deg)';
+                    console.log('已收起thinking内容');
+                } else {
+                    // 展开
+                    content.style.display = 'block';
+                    icon.style.transform = 'rotate(180deg)';
+                    console.log('已展开thinking内容');
+                }
+            } else {
+                console.error('未找到thinking元素:', thinkingId);
+                console.error('页面中所有thinking元素:', document.querySelectorAll('.thinking-section'));
+            }
+        };
+
+        // 工具参数折叠/展开函数
+        window.toggleToolParams = function(toolId) {
+            console.log('toggleToolParams 被调用，toolId:', toolId);
+            
+            const content = document.getElementById(toolId + '_content');
+            const icon = document.getElementById(toolId + '_icon');
+            
+            console.log('找到的元素:', { content, icon });
+            
+            if (content && icon) {
+                const isExpanded = content.classList.contains('expanded');
+                console.log('当前展开状态:', isExpanded);
+                
+                if (isExpanded) {
+                    // 收起
+                    content.classList.remove('expanded');
+                    icon.classList.remove('expanded');
+                    console.log('已收起工具参数');
+                } else {
+                    // 展开
+                    content.classList.add('expanded');
+                    icon.classList.add('expanded');
+                    console.log('已展开工具参数');
+                }
+            } else {
+                console.error('未找到工具调用元素:', toolId);
+                console.error('页面中所有工具调用元素:', document.querySelectorAll('.tool-call'));
+            }
+        };
+        
+        // 测试工具调用功能
+        window.testToolCallFunction = function() {
+            console.log('=== 工具调用功能测试 ===');
+            console.log('window.toggleToolParams 函数存在:', typeof window.toggleToolParams === 'function');
+            
+            const toolCalls = document.querySelectorAll('.tool-call');
+            console.log('页面中工具调用元素数量:', toolCalls.length);
+            
+            toolCalls.forEach((toolCall, index) => {
+                const header = toolCall.querySelector('.tool-call-header');
+                const content = toolCall.querySelector('.tool-params-content');
+                const icon = toolCall.querySelector('.tool-expand-icon');
+                
+                console.log(`工具调用 ${index + 1}:`, {
+                    hasHeader: !!header,
+                    hasContent: !!content,
+                    hasIcon: !!icon,
+                    onclickValue: header ? header.getAttribute('onclick') : 'N/A',
+                    contentId: content ? content.id : 'N/A',
+                    iconId: icon ? icon.id : 'N/A'
+                });
+            });
+        };
+        
+        // Mermaid 相关功能
+        window.initMermaid = function() {
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({
+                    startOnLoad: true,
+                    theme: 'default',
+                    securityLevel: 'loose',
+                    themeVariables: {
+                        primaryColor: '#3b82f6',
+                        primaryTextColor: '#1f2937',
+                        primaryBorderColor: '#2563eb',
+                        lineColor: '#6b7280',
+                        sectionBkgColor: '#f3f4f6',
+                        altSectionBkgColor: '#e5e7eb',
+                        gridColor: '#e5e7eb',
+                        secondaryColor: '#10b981',
+                        tertiaryColor: '#f59e0b'
+                    }
+                });
+                console.log('Mermaid 初始化完成');
+            } else {
+                console.warn('Mermaid 库未加载');
+            }
+        };
+        
+        // 渲染所有Mermaid图表 - 智能检测
+        window.renderMermaidCharts = function() {
+            if (typeof mermaid !== 'undefined') {
+                try {
+                    // 总是尝试渲染所有 Mermaid 图表，让 mermaid.run() 自己处理重复渲染
+                    mermaid.run();
+                } catch (error) {
+                    // 静默处理常见错误
+                    if (!error.message.includes('Parse error') && !error.message.includes('syntax')) {
+                        console.error('Mermaid 渲染错误:', error);
+                    }
+                }
+            }
+        };
+        
+        // 下载 Mermaid SVG
+        window.downloadMermaidSVG = function(mermaidId) {
+            const mermaidElement = document.getElementById(mermaidId);
+            if (!mermaidElement) {
+                alert('未找到图表元素');
+                return;
+            }
+            
+            const svgElement = mermaidElement.querySelector('svg');
+            if (!svgElement) {
+                alert('未找到SVG元素');
+                return;
+            }
+            
+            try {
+                // 获取SVG内容
+                const svgData = new XMLSerializer().serializeToString(svgElement);
+                const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+                const svgUrl = URL.createObjectURL(svgBlob);
+                
+                // 创建下载链接
+                const downloadLink = document.createElement('a');
+                downloadLink.href = svgUrl;
+                downloadLink.download = `mermaid_diagram_${new Date().toISOString().replace(/[:.]/g, '-')}.svg`;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                // 清理对象URL
+                setTimeout(() => {
+                    URL.revokeObjectURL(svgUrl);
+                }, 100);
+                
+                console.log('SVG下载成功');
+            } catch (error) {
+                console.error('SVG下载失败:', error);
+                alert('SVG下载失败: ' + error.message);
+            }
+        };
+        
+        // 显示PNG尺寸选择对话框
+        window.showPngSizeDialog = function(mermaidId) {
+            const mermaidElement = document.getElementById(mermaidId);
+            if (!mermaidElement) {
+                alert('未找到图表元素');
+                return;
+            }
+            
+            const svgElement = mermaidElement.querySelector('svg');
+            if (!svgElement) {
+                alert('未找到SVG元素');
+                return;
+            }
+            
+            // 获取SVG原始尺寸
+            const bbox = svgElement.getBBox();
+            const svgWidth = bbox.width || 800;
+            const svgHeight = bbox.height || 600;
+            
+            // 计算宽高比
+            const aspectRatio = svgHeight / svgWidth;
+            
+            // 默认尺寸
+            const defaultWidth = Math.max(1920, Math.ceil(svgWidth));
+            const defaultHeight = Math.ceil(defaultWidth * aspectRatio);
+            
+            // 创建对话框
+            const dialog = document.createElement('div');
+            dialog.className = 'png-dialog';
+            dialog.innerHTML = `
+                <div class="png-dialog-content">
+                    <h3>设置PNG导出尺寸</h3>
+                    <div>
+                        <label for="png-width">宽度 (像素):</label>
+                        <input type="number" id="png-width" value="${defaultWidth}" min="100" max="8192">
+                    </div>
+                    <div>
+                        <label for="png-height">高度 (像素):</label>
+                        <input type="number" id="png-height" value="${defaultHeight}" min="100" max="8192">
+                    </div>
+                    <div>
+                        <label>
+                            <input type="checkbox" id="maintain-ratio" checked>
+                            保持宽高比
+                        </label>
+                    </div>
+                    <div class="png-dialog-actions">
+                        <button class="png-dialog-btn" onclick="closePngDialog()">取消</button>
+                        <button class="png-dialog-btn primary" onclick="downloadPNG('${mermaidId}')">下载</button>
+                    </div>
+                </div>
+            `;
+            
+            // 添加到页面
+            document.body.appendChild(dialog);
+            
+            // 保持宽高比功能
+            const widthInput = document.getElementById('png-width');
+            const heightInput = document.getElementById('png-height');
+            const ratioCheckbox = document.getElementById('maintain-ratio');
+            
+            widthInput.addEventListener('input', function() {
+                if (ratioCheckbox.checked) {
+                    heightInput.value = Math.round(this.value * aspectRatio);
+                }
+            });
+            
+            heightInput.addEventListener('input', function() {
+                if (ratioCheckbox.checked) {
+                    widthInput.value = Math.round(this.value / aspectRatio);
+                }
+            });
+            
+            // ESC键关闭
+            const handleEscape = function(e) {
+                if (e.key === 'Escape') {
+                    closePngDialog();
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        };
+        
+        // 关闭PNG对话框
+        window.closePngDialog = function() {
+            const dialog = document.querySelector('.png-dialog');
+            if (dialog) {
+                document.body.removeChild(dialog);
+            }
+        };
+        
+        // 下载PNG
+        window.downloadPNG = function(mermaidId) {
+            const width = parseInt(document.getElementById('png-width').value);
+            const height = parseInt(document.getElementById('png-height').value);
+            
+            if (isNaN(width) || isNaN(height) || width < 100 || height < 100) {
+                alert('请输入有效的尺寸（至少100像素）');
+                return;
+            }
+            
+            const mermaidElement = document.getElementById(mermaidId);
+            if (!mermaidElement) {
+                alert('未找到图表元素');
+                return;
+            }
+            
+            const svgElement = mermaidElement.querySelector('svg');
+            if (!svgElement) {
+                alert('未找到SVG元素');
+                return;
+            }
+            
+            try {
+                // 克隆SVG元素以避免修改原始元素
+                const clonedSvg = svgElement.cloneNode(true);
+                
+                // 确保SVG有正确的命名空间和属性
+                clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+                
+                // 获取SVG的实际尺寸
+                const bbox = svgElement.getBBox();
+                const svgWidth = bbox.width || parseInt(svgElement.getAttribute('width')) || 800;
+                const svgHeight = bbox.height || parseInt(svgElement.getAttribute('height')) || 600;
+                
+                // 设置viewBox以确保正确缩放
+                if (!clonedSvg.getAttribute('viewBox')) {
+                    clonedSvg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+                }
+                clonedSvg.setAttribute('width', svgWidth);
+                clonedSvg.setAttribute('height', svgHeight);
+                
+                // 内联所有外部样式，避免跨域问题
+                const styleSheets = document.styleSheets;
+                let inlineStyles = '';
+                for (let i = 0; i < styleSheets.length; i++) {
+                    try {
+                        const rules = styleSheets[i].cssRules || styleSheets[i].rules;
+                        for (let j = 0; j < rules.length; j++) {
+                            if (rules[j].cssText && rules[j].cssText.includes('mermaid')) {
+                                inlineStyles += rules[j].cssText + '\n';
+                            }
+                        }
+                    } catch (e) {
+                        // 忽略跨域样式表
+                        console.log('跳过跨域样式表');
+                    }
+                }
+                
+                // 如果有相关样式，添加到SVG中
+                if (inlineStyles) {
+                    const styleElement = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+                    styleElement.textContent = inlineStyles;
+                    clonedSvg.insertBefore(styleElement, clonedSvg.firstChild);
+                }
+                
+                // 获取SVG数据
+                const svgData = new XMLSerializer().serializeToString(clonedSvg);
+                
+                // 创建Data URL而不是Blob URL，避免跨域问题
+                const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+                
+                // 创建图像
+                const img = new Image();
+                
+                img.onload = function() {
+                    try {
+                        // 创建canvas
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        
+                        if (!ctx) {
+                            throw new Error('无法获取Canvas上下文');
+                        }
+                        
+                        // 设置白色背景
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, width, height);
+                        
+                        // 计算缩放比例以保持图像在画布中央
+                        const scaleX = width / svgWidth;
+                        const scaleY = height / svgHeight;
+                        const scale = Math.min(scaleX, scaleY);
+                        
+                        const scaledWidth = svgWidth * scale;
+                        const scaledHeight = svgHeight * scale;
+                        const offsetX = (width - scaledWidth) / 2;
+                        const offsetY = (height - scaledHeight) / 2;
+                        
+                        // 绘制图像（居中）
+                        ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+                        
+                        // 尝试转换为PNG并下载
+                        try {
+                            canvas.toBlob(function(blob) {
+                                if (!blob) {
+                                    throw new Error('无法生成PNG数据');
+                                }
+                                
+                                const pngUrl = URL.createObjectURL(blob);
+                                const downloadLink = document.createElement('a');
+                                downloadLink.href = pngUrl;
+                                downloadLink.download = `mermaid_diagram_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+                                document.body.appendChild(downloadLink);
+                                downloadLink.click();
+                                document.body.removeChild(downloadLink);
+                                
+                                // 清理
+                                URL.revokeObjectURL(pngUrl);
+                                
+                                console.log('PNG下载成功');
+                                closePngDialog();
+                            }, 'image/png', 0.9);
+                        } catch (blobError) {
+                            // 如果toBlob失败，尝试使用toDataURL
+                            console.log('toBlob失败，尝试使用toDataURL');
+                            try {
+                                const dataUrl = canvas.toDataURL('image/png', 0.9);
+                                const link = document.createElement('a');
+                                link.href = dataUrl;
+                                link.download = `mermaid_diagram_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                
+                                console.log('PNG下载成功（使用toDataURL）');
+                                closePngDialog();
+                            } catch (dataUrlError) {
+                                throw new Error('Canvas被污染，无法导出PNG。这通常是由于外部资源导致的安全限制。');
+                            }
+                        }
+                        
+                    } catch (canvasError) {
+                        console.error('Canvas处理错误:', canvasError);
+                        alert('Canvas处理失败: ' + canvasError.message);
+                    }
+                };
+                
+                img.onerror = function(error) {
+                    console.error('图像加载错误:', error);
+                    alert('无法加载SVG图像，可能是由于浏览器安全限制或SVG格式问题');
+                };
+                
+                // 设置超时处理
+                setTimeout(() => {
+                    if (!img.complete) {
+                        img.onerror(new Error('图像加载超时'));
+                    }
+                }, 10000); // 10秒超时
+                
+                img.src = svgDataUrl;
+                
+            } catch (error) {
+                console.error('PNG下载失败:', error);
+                alert('PNG下载失败: ' + error.message);
+            }
+        };
+    </script>
+</body>
+</html> 

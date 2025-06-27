@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型数据测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">模型数据测试</h1>
+        
+        <div class="space-y-6">
+            <div class="bg-white border border-gray-200 rounded-lg p-4">
+                <h3 class="font-semibold mb-2">当前模型</h3>
+                <pre id="current-model" class="bg-gray-100 p-3 rounded text-sm"></pre>
+            </div>
+            
+            <div class="bg-white border border-gray-200 rounded-lg p-4">
+                <h3 class="font-semibold mb-2">所有模型</h3>
+                <pre id="all-models" class="bg-gray-100 p-3 rounded text-sm"></pre>
+            </div>
+            
+            <div class="bg-white border border-gray-200 rounded-lg p-4">
+                <h3 class="font-semibold mb-2">模型详情</h3>
+                <div id="model-details"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadData() {
+            try {
+                // 获取当前模型
+                const currentResponse = await fetch('http://localhost:8000/models/current');
+                const currentData = await currentResponse.json();
+                document.getElementById('current-model').textContent = JSON.stringify(currentData, null, 2);
+                
+                // 获取所有模型
+                const allResponse = await fetch('http://localhost:8000/models');
+                const allData = await allResponse.json();
+                document.getElementById('all-models').textContent = JSON.stringify(allData, null, 2);
+                
+                // 渲染模型详情
+                if (allData.success && allData.data && allData.data.provider_details) {
+                    const container = document.getElementById('model-details');
+                    container.innerHTML = '';
+                    
+                    Object.entries(allData.data.provider_details).forEach(([provider, model]) => {
+                        const div = document.createElement('div');
+                        div.className = 'p-3 border border-gray-200 rounded-lg mb-2';
+                        div.innerHTML = `
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="font-medium">${provider}</span>
+                                    <p class="text-sm text-gray-600">${model.model}</p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs ${model.enabled ? 'text-green-600' : 'text-gray-400'}">
+                                        ${model.enabled ? '✅' : '❌'}
+                                    </span>
+                                    <button onclick="switchModel('${provider}')"
+                                            ${!model.enabled ? 'disabled' : ''}
+                                            class="px-2 py-1 text-xs text-white rounded ${
+                                                model.enabled ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'
+                                            }">
+                                        切换
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                }
+                
+            } catch (error) {
+                console.error('加载数据失败:', error);
+            }
+        }
+        
+        async function switchModel(provider) {
+            try {
+                const response = await fetch('http://localhost:8000/models/switch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert(data.message);
+                    loadData(); // 重新加载数据
+                } else {
+                    alert('切换失败');
+                }
+            } catch (error) {
+                console.error('切换模型失败:', error);
+                alert('切换失败: ' + error.message);
+            }
+        }
+        
+        // 页面加载时获取数据
+        loadData();
+    </script>
+</body>
+</html> 

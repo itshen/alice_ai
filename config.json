@@ -1,0 +1,82 @@
+{
+  "default_model": {
+    "provider": "openrouter",
+    "fallback_providers": [
+      "ollama",
+      "qwen",
+      "openrouter"
+    ]
+  },
+  "models": {
+    "ollama": {
+      "enabled": true,
+      "host": "http://localhost:11434",
+      "model": "qwen3:8b"
+    },
+    "qwen": {
+      "enabled": true,
+      "api_key": "sk-",
+      "model": "qwen-plus-latest"
+    },
+    "openrouter": {
+      "enabled": true,
+      "api_key": "sk-or-v1-",
+      "model": "anthropic/claude-sonnet-4"
+    }
+  },
+  "database": {
+    "path": "chat_history.db"
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000
+  },
+  "tool_modules": {
+    "auto_load": true,
+    "interactive_selection": false,
+    "default_active": [
+      "web_scraping_tools"
+    ],
+    "module_directories": [
+      "ai_chat_tools/tool_modules",
+      "ai_chat_tools/user_tool_modules"
+    ],
+    "enabled_categories": [
+      "builtin",
+      "user"
+    ],
+    "module_configs": {},
+    "default_modules": []
+  },
+  "user_confirmation": {
+    "default_policy": "ask",
+    "tool_policies": {
+      "send_woa_text_message": "allow",
+      "send_woa_markdown_message": "allow",
+      "add_function_to_module": "allow"
+    },
+    "category_policies": {
+      "file_write": "ask",
+      "file_delete": "ask",
+      "file_modify": "ask",
+      "system_command": "ask",
+      "network_request": "allow"
+    },
+    "remember_choices": true,
+    "session_memory": {
+      "send_woa_text_message_notification": "allow_always",
+      "send_woa_markdown_message_notification": "allow_always",
+      "add_function_to_module_file_modify": "allow_always"
+    }
+  },
+  "token_optimization": {
+    "enabled": true,
+    "filter_old_tool_results": true,
+    "keep_recent_messages": 5,
+    "filter_tools": [
+      "list_tool_modules",
+      "list_available_tools"
+    ],
+    "filter_threshold": 1000
+  }
+}
