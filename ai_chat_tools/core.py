@@ -9,11 +9,12 @@ from .models import model_manager
 from .tool_manager import tool_registry
 from .database import db
 from .xml_parser import xml_parser
+from .user_confirmation import user_confirmation_manager, UserConfirmationRequired
 
 class ChatBot:
     """AI聊天机器人核心类"""
     
-    def __init__(self, provider: str | None = None, debug: bool = False, max_turns: Optional[int] = None):
+    def __init__(self, provider: str | None = None, debug: bool = False, max_turns: Optional[int] = None, web_mode: bool = False):
         """
         初始化聊天机器人
         
@@ -21,11 +22,16 @@ class ChatBot:
             provider: 模型提供商 (ollama, qwen, openrouter)，如果为None则使用配置的默认提供商
             debug: 是否启用调试模式，显示工具执行过程信息
             max_turns: 最大对话轮数，如果为None则使用配置文件中的默认值
+            web_mode: 是否为Web模式，Web模式下用户确认会通过前端处理
         """
         self.provider = provider or model_manager.get_default_provider_name()
         self.current_session_id = None
         self.debug = debug
         self.max_turns = max_turns  # 保存最大轮数设置
+        self.web_mode = web_mode
+        
+        # 设置用户确认管理器的Web模式
+        user_confirmation_manager.set_web_mode(web_mode)
         
         # 如果指定的提供商不可用，使用默认提供商
         if self.provider and self.provider not in model_manager.list_adapters():
@@ -206,7 +212,14 @@ class ChatBot:
                 break
             
             # 执行工具调用
-            tool_results = await self._execute_tool_calls(tool_calls_found)
+            try:
+                print(f"🔧 [DEBUG] 开始执行工具调用: {[tc.get('function', {}).get('name') for tc in tool_calls_found]}")
+                tool_results = await self._execute_tool_calls(tool_calls_found)
+                print(f"✅ [DEBUG] 工具调用完成，结果数量: {len(tool_results)}")
+            except UserConfirmationRequired as e:
+                # 在流式模式下，用户确认异常应该向上传播到API层处理
+                print(f"🔒 [DEBUG] 捕获到用户确认请求: {e.tool_name}, ID: {e.confirmation_id}")
+                raise
             
             # 显示工具调用结果（带分割线和详细格式）
             yield "\n" + "="*20 + " 🔧 AI工具调用 " + "="*20 + "\n"
@@ -524,6 +537,9 @@ class ChatBot:
                 # 直接返回ToolResult对象，保留完整信息
                 results.append(tool_result)
                 
+            except UserConfirmationRequired:
+                # 在Web模式下，用户确认异常应该直接向上传播，不在这里处理
+                raise
             except Exception as e:
                 # 创建错误的ToolResult对象
                 from .tool_manager import ToolResult, ErrorCodes

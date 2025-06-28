@@ -111,7 +111,9 @@ def write_file(file_path: str, content: str, encoding: str = "utf-8", append: bo
                 return f"❌ 不允许的文件扩展名: {file_ext}，允许的扩展名: {allowed_extensions}"
         
         # 创建目录（如果不存在）
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        dir_path = os.path.dirname(file_path)
+        if dir_path:  # 只有当目录路径不为空时才创建
+            os.makedirs(dir_path, exist_ok=True)
         
         # 写入文件
         mode = 'a' if append else 'w'

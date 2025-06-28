@@ -14,12 +14,26 @@ from .core import ChatBot
 from .config import config
 from .tool_manager import tool_registry
 from .tool_module_manager import tool_module_manager
+from .user_confirmation import user_confirmation_manager, UserConfirmationRequired
 
 app = FastAPI(
     title="AI Chat Tools",
     description="简化的AI工具调用框架",
     version="1.0.0"
 )
+
+# 启动时自动扫描并加载工具模块
+try:
+    tool_module_manager.scan_and_load_all_modules()
+    # 激活常用的工具模块
+    default_modules = ['file_manager_tools']
+    available_modules = list(tool_module_manager.loaded_modules)
+    modules_to_activate = [m for m in default_modules if m in available_modules]
+    if modules_to_activate:
+        tool_module_manager.activate_modules(modules_to_activate)
+        print(f"✅ 已自动激活工具模块: {modules_to_activate}")
+except Exception as e:
+    print(f"⚠️  自动加载工具模块失败: {e}")
 
 # 挂载静态文件
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
@@ -70,6 +84,11 @@ class ToolCallRequest(BaseModel):
     tool_name: str
     parameters: dict = {}
 
+class ConfirmationRequest(BaseModel):
+    confirmation_id: str
+    choice: str  # allow, deny
+    remember_choice: bool = False
+
 # API路由
 @app.get("/")
 async def root():
@@ -81,8 +100,8 @@ async def root():
 async def chat(request: ChatRequest):
     """聊天接口"""
     try:
-        # 为每个请求创建独立的ChatBot实例
-        chatbot = ChatBot(provider=request.provider, debug=request.debug)
+        # 为每个请求创建独立的ChatBot实例，启用Web模式
+        chatbot = ChatBot(provider=request.provider, debug=request.debug, web_mode=True)
         
         if request.stream:
             # 流式响应 - 使用SSE格式返回结构化数据
@@ -114,30 +133,41 @@ async def chat(request: ChatRequest):
                     yield f"event: thinking\ndata: {json.dumps({'type': 'thinking', 'message': 'AI正在思考...'})}\n\n"
                     
                     # 流式处理聊天 - 使用正确的session_id
-                    async for chunk in chatbot.chat_stream(
-                        message=request.message,
-                        session_id=session_id_to_use,
-                        tools=request.tools
-                    ):
-                        # 检查是否是工具调用分割线
-                        if "🔧 AI工具调用" in chunk:
-                            yield f"event: tool_start\ndata: {json.dumps({'type': 'tool_start', 'message': '开始执行工具...'})}\n\n"
-                        elif "🔧 调用完成" in chunk:
-                            yield f"event: tool_end\ndata: {json.dumps({'type': 'tool_end', 'message': '工具执行完成'})}\n\n"
-                        elif "<TOOL_RESULT>" in chunk and "</TOOL_RESULT>" in chunk:
-                            # 解析工具结果
-                            import re
-                            tool_result_match = re.search(r'<TOOL_RESULT>\s*(.*?)\s*</TOOL_RESULT>', chunk, re.DOTALL)
-                            if tool_result_match:
-                                tool_result_content = tool_result_match.group(1)
-                                yield f"event: tool_result\ndata: {json.dumps({'type': 'tool_result', 'content': tool_result_content})}\n\n"
-                        else:
-                            # 普通文本内容
-                            if chunk.strip():
-                                yield f"event: message\ndata: {json.dumps({'type': 'message', 'content': chunk})}\n\n"
+                    try:
+                        async for chunk in chatbot.chat_stream(
+                            message=request.message,
+                            session_id=session_id_to_use,
+                            tools=request.tools
+                        ):
+                            # 检查是否是工具调用分割线
+                            if "🔧 AI工具调用" in chunk:
+                                yield f"event: tool_start\ndata: {json.dumps({'type': 'tool_start', 'message': '开始执行工具...'})}\n\n"
+                            elif "🔧 调用完成" in chunk:
+                                yield f"event: tool_end\ndata: {json.dumps({'type': 'tool_end', 'message': '工具执行完成'})}\n\n"
+                            elif "<TOOL_RESULT>" in chunk and "</TOOL_RESULT>" in chunk:
+                                # 解析工具结果
+                                import re
+                                tool_result_match = re.search(r'<TOOL_RESULT>\s*(.*?)\s*</TOOL_RESULT>', chunk, re.DOTALL)
+                                if tool_result_match:
+                                    tool_result_content = tool_result_match.group(1)
+                                    yield f"event: tool_result\ndata: {json.dumps({'type': 'tool_result', 'content': tool_result_content})}\n\n"
+                            else:
+                                # 普通文本内容
+                                if chunk.strip():
+                                    yield f"event: message\ndata: {json.dumps({'type': 'message', 'content': chunk})}\n\n"
+                        
+                        # 发送完成事件
+                        yield f"event: complete\ndata: {json.dumps({'type': 'complete', 'message': '对话完成'})}\n\n"
                     
-                    # 发送完成事件
-                    yield f"event: complete\ndata: {json.dumps({'type': 'complete', 'message': '对话完成'})}\n\n"
+                    except UserConfirmationRequired as confirmation_request:
+                        # 需要用户确认，发送确认请求事件
+                        print(f"🔒 [API DEBUG] 捕获到确认请求: {confirmation_request.tool_name}, ID: {confirmation_request.confirmation_id}")
+                        confirmation_info = user_confirmation_manager.get_confirmation_info(confirmation_request.confirmation_id)
+                        print(f"📋 [API DEBUG] 确认信息: {confirmation_info}")
+                        event_data = {'type': 'confirmation_required', 'confirmation_info': confirmation_info}
+                        print(f"📤 [API DEBUG] 发送确认事件: {event_data}")
+                        yield f"event: confirmation_required\ndata: {json.dumps(event_data)}\n\n"
+                        # 不发送完成事件，等待用户确认后继续
                     
                 except Exception as e:
                     yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': f'错误: {str(e)}'})}\n\n"
@@ -254,7 +284,7 @@ async def generate_conversation_title(user_message: str, chatbot: ChatBot) -> st
 async def get_sessions():
     """获取所有会话"""
     try:
-        chatbot = ChatBot()
+        chatbot = ChatBot(web_mode=True)
         return {"sessions": chatbot.get_sessions()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -263,7 +293,7 @@ async def get_sessions():
 async def create_session(request: SessionRequest):
     """创建新会话"""
     try:
-        chatbot = ChatBot(provider=request.provider)
+        chatbot = ChatBot(provider=request.provider, web_mode=True)
         session_id = chatbot.create_session(request.title)
         return {"session_id": session_id}
     except Exception as e:
@@ -273,7 +303,7 @@ async def create_session(request: SessionRequest):
 async def get_session(session_id: str):
     """获取会话详情"""
     try:
-        chatbot = ChatBot()
+        chatbot = ChatBot(web_mode=True)
         messages = chatbot.get_session_messages(session_id)
         return {"session_id": session_id, "messages": messages}
     except Exception as e:
@@ -293,7 +323,7 @@ async def delete_session(session_id: str):
 async def get_tools():
     """获取所有已注册的工具"""
     try:
-        chatbot = ChatBot()
+        chatbot = ChatBot(web_mode=True)
         return {"tools": chatbot.list_tools()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -401,7 +431,7 @@ async def call_tool(request: ToolCallRequest):
 async def get_providers():
     """获取所有可用的模型提供商"""
     try:
-        chatbot = ChatBot()
+        chatbot = ChatBot(web_mode=True)
         return {"providers": chatbot.list_providers()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -644,6 +674,156 @@ async def set_default_model(request: DefaultModelRequest):
         
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/confirmations/{confirmation_id}")
+async def get_confirmation_info(confirmation_id: str):
+    """获取确认请求的详细信息"""
+    try:
+        info = user_confirmation_manager.get_confirmation_info(confirmation_id)
+        return {"success": True, "data": info}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/confirmations/{confirmation_id}/respond")
+async def respond_confirmation(confirmation_id: str, request: ConfirmationRequest):
+    """响应用户确认请求"""
+    try:
+        result = user_confirmation_manager.handle_confirmation_response(
+            confirmation_id=confirmation_id,
+            choice=request.choice,
+            remember_choice=request.remember_choice
+        )
+        return {"success": True, "allowed": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ContinueChatRequest(BaseModel):
+    confirmation_id: str
+    choice: str  # allow, deny
+    remember_choice: bool = False
+    message: str
+    session_id: Optional[str] = None
+    tools: Optional[List[str]] = None
+
+@app.post("/chat/continue")
+async def continue_chat_after_confirmation(request: ContinueChatRequest):
+    """在用户确认后继续聊天"""
+    try:
+        # 处理用户确认
+        result = user_confirmation_manager.handle_confirmation_response(
+            confirmation_id=request.confirmation_id,
+            choice=request.choice,
+            remember_choice=request.remember_choice
+        )
+        
+        if not result:
+            # 用户拒绝了操作
+            async def generate_denied():
+                yield f"data: {json.dumps({'type': 'message', 'content': '❌ 操作已被用户拒绝。'})}\n\n"
+                yield f"data: {json.dumps({'type': 'complete', 'message': '操作拒绝完成'})}\n\n"
+            
+            return StreamingResponse(
+                generate_denied(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Headers": "*",
+                }
+            )
+        
+        # 用户同意了操作，执行工具并让AI继续完成任务
+        async def generate_continue():
+            try:
+                print(f"🚀 [API DEBUG] 开始执行确认的工具，confirmation_id: {request.confirmation_id}")
+                yield f"data: {json.dumps({'type': 'tool_start', 'message': '开始执行工具...'})}\n\n"
+                
+                # 直接执行已确认的工具
+                print(f"🔧 [API DEBUG] 调用 execute_confirmed_tool")
+                tool_result = await user_confirmation_manager.execute_confirmed_tool(request.confirmation_id)
+                print(f"📊 [API DEBUG] 工具执行结果: success={tool_result.success}, data={tool_result.data[:100] if tool_result.data else 'None'}")
+                
+                if tool_result.success:
+                    yield f"data: {json.dumps({'type': 'tool_result', 'content': tool_result.data})}\n\n"
+                    tool_success_msg = f"✅ 工具执行成功！\n\n{tool_result.data}"
+                else:
+                    yield f"data: {json.dumps({'type': 'error', 'message': f'工具执行失败: {tool_result.error_message}'})}\n\n"
+                    tool_success_msg = f"❌ 工具执行失败: {tool_result.error_message}"
+                
+                # 让AI继续处理任务，而不是直接结束
+                print(f"🤖 [API DEBUG] 让AI继续处理任务")
+                yield f"data: {json.dumps({'type': 'message', 'content': tool_success_msg})}\n\n"
+                
+                # 创建ChatBot实例继续处理
+                chatbot = ChatBot(
+                    provider=None,  # 使用默认提供商
+                    web_mode=True  # 启用Web模式
+                )
+                
+                # 如果有session_id，加载会话
+                if request.session_id:
+                    chatbot.load_session(request.session_id)
+                
+                # 构建包含工具执行结果的上下文消息
+                context_message = f"工具执行结果：{tool_success_msg}\n\n请继续完成用户的请求：{request.message}"
+                
+                # 让AI继续流式处理剩余任务
+                print(f"🔄 [API DEBUG] AI继续处理: {context_message[:100]}...")
+                async for chunk in chatbot.chat_stream(
+                    message=context_message,
+                    tools=request.tools or []
+                ):
+                    if chunk:
+                        # 检查是否是工具调用分割线
+                        if "🔧 AI工具调用" in chunk:
+                            yield f"data: {json.dumps({'type': 'tool_start', 'message': '开始执行工具...'})}\n\n"
+                        elif "🔧 调用完成" in chunk:
+                            yield f"data: {json.dumps({'type': 'tool_end', 'message': '工具执行完成'})}\n\n"
+                        elif "<TOOL_RESULT>" in chunk and "</TOOL_RESULT>" in chunk:
+                            # 解析工具结果
+                            import re
+                            tool_result_match = re.search(r'<TOOL_RESULT>\s*(.*?)\s*</TOOL_RESULT>', chunk, re.DOTALL)
+                            if tool_result_match:
+                                tool_result_content = tool_result_match.group(1)
+                                yield f"data: {json.dumps({'type': 'tool_result', 'content': tool_result_content})}\n\n"
+                        else:
+                            # 普通文本内容
+                            if chunk.strip():
+                                yield f"data: {json.dumps({'type': 'message', 'content': chunk})}\n\n"
+                
+                # 发送完成事件
+                yield f"data: {json.dumps({'type': 'complete', 'message': '任务完成'})}\n\n"
+                
+                print(f"✅ [API DEBUG] 完整任务流程完成")
+                
+            except Exception as e:
+                print(f"❌ [API DEBUG] 执行工具时发生异常: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                yield f"data: {json.dumps({'type': 'error', 'message': f'执行工具时发生错误: {str(e)}'})}\n\n"
+                yield f"data: {json.dumps({'type': 'message', 'content': f'❌ 执行工具时发生错误: {str(e)}'})}\n\n"
+                yield f"data: {json.dumps({'type': 'complete', 'message': '执行完成'})}\n\n"
+        
+        return StreamingResponse(
+            generate_continue(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

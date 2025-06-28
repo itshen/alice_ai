@@ -911,7 +911,7 @@
                                     <template x-for="(message, index) in messageGroup.messages" :key="message.id">
                                         <div class="prose prose-sm max-w-none message-content" 
                                              :class="index > 0 ? 'mt-4 pt-4 border-t border-gray-200' : ''"
-                                             x-html="formatMessage(message.content, message)"></div>
+                                             x-html="message.role === 'confirmation' ? renderConfirmationMessage(message) : formatMessage(message.content, message)"></div>
                                     </template>
                                     <!-- 调试信息 (已关闭) -->
                                     <div x-show="false" class="mt-2 p-2 bg-gray-100 text-xs rounded">
@@ -1046,6 +1046,8 @@
         <span x-text="notification.message"></span>
     </div>
 
+    <!-- 旧的弹窗确认对话框已移除，现在使用内联确认 -->
+
 
 
     <script>
@@ -1069,6 +1071,7 @@
                 filteredMemories: [],
                 memoryFilter: '',
                 inputMessage: '',
+                lastUserMessage: '',  // 保存最后一条用户消息，用于确认流程
                 isLoading: false,
                 streamMode: true,
                 sidebarCollapsed: false,  // 侧边栏收起状态
@@ -1091,13 +1094,21 @@
                     type: 'info'
                 },
                 
+                // 用户确认对话框（已移除，现在使用内联确认）
+                
                 // 初始化
                 async init() {
+                    // 设置全局应用实例引用
+                    window.chatApp = this;
+                    
                     // 确保执行过程默认隐藏
                     this.showExecutionProgress = false;
                     this.executionSteps = [];
                     this.currentToolCall = null;
                     this.isLoading = false;
+                    
+                    // 确认对话框已移除，现在使用内联确认
+                    
                     console.log('初始化完成，状态:', {
                         showExecutionProgress: this.showExecutionProgress,
                         isLoading: this.isLoading,
@@ -1229,6 +1240,7 @@
                     if (!this.inputMessage.trim() || this.isLoading) return;
                     
                     const message = this.inputMessage.trim();
+                    this.lastUserMessage = message;  // 保存用户消息，用于确认流程
                     this.inputMessage = '';
                     this.isLoading = true;
                     
@@ -1296,10 +1308,11 @@
                         const reader = response.body.getReader();
                         const decoder = new TextDecoder();
                         let buffer = '';
+                        let shouldStopStream = false;
                         
                         while (true) {
                             const { done, value } = await reader.read();
-                            if (done) break;
+                            if (done || shouldStopStream) break;
                             
                             buffer += decoder.decode(value, { stream: true });
                             
@@ -1311,7 +1324,13 @@
                                 if (line.startsWith('data: ')) {
                                     try {
                                         const data = JSON.parse(line.substring(6));
-                                        await this.handleSSEEvent(data, aiMessage);
+                                        const result = await this.handleSSEEvent(data, aiMessage);
+                                        
+                                        // 如果handleSSEEvent返回false，停止流式处理
+                                        if (result === false) {
+                                            shouldStopStream = true;
+                                            break;
+                                        }
                                         
                                         // 强制更新界面并滚动到底部
                                         this.scrollToBottom();
@@ -1323,7 +1342,8 @@
                         }
                         
                         // 流式响应完成后，重新加载会话以获取完整历史（包括工具调用结果）
-                        if (this.currentSessionId) {
+                        // 但如果是因为确认请求而停止的，则不重新加载（避免覆盖确认消息）
+                        if (this.currentSessionId && !shouldStopStream) {
                             await this.loadSession(this.currentSessionId);
                         }
                         
@@ -1455,6 +1475,48 @@
                             // 尝试提取工具调用信息
                             this.extractToolCallFromMessage(aiMessage);
                             break;
+                            
+                        case 'confirmation_required':
+                            // 处理用户确认请求
+                            console.log('🔒 [前端DEBUG] 收到确认请求事件:', data);
+                            console.log('📋 [前端DEBUG] 确认信息:', data.confirmation_info);
+                            
+                            aiMessage.steps.push({ 
+                                type: 'confirmation_required', 
+                                message: '等待用户确认...', 
+                                timestamp: new Date(),
+                                icon: '🔒'
+                            });
+                            
+                            // 在聊天中添加确认请求消息
+                            const confirmationMessage = {
+                                id: Date.now() + 2,
+                                role: 'confirmation',
+                                content: '',
+                                timestamp: new Date().toISOString(),
+                                confirmation_info: data.confirmation_info,
+                                pendingChatData: {
+                                    message: this.lastUserMessage || '',  // 使用保存的用户消息
+                                    session_id: this.currentSessionId,
+                                    tools: this.availableTools.map(tool => tool.name)
+                                }
+                            };
+                            console.log('💬 [前端DEBUG] 添加确认消息:', confirmationMessage);
+                            console.log('💬 [前端DEBUG] 保存的用户消息:', this.lastUserMessage);
+                            console.log('💬 [前端DEBUG] 可用工具数量:', this.availableTools.length);
+                            this.messages.push(confirmationMessage);
+                            
+                            // 强制触发Alpine.js重新渲染
+                            this.messages = [...this.messages];
+                            
+
+                            
+                            // 暂停加载状态，等待用户确认
+                            this.isLoading = false;
+                            this.showExecutionProgress = false;
+                            
+                            // 跳出流式处理循环，不要继续处理后续事件
+                            return false;
                             
                         case 'complete':
                             aiMessage.steps.push({ 
@@ -2025,6 +2087,9 @@
 
                 // 获取头像样式
                 getAvatarClass(message) {
+                    if (message.role === 'confirmation') {
+                        return 'bg-orange-500';
+                    }
                     if (message.role === 'user') {
                         const isToolResult = this.isToolResult(message);
                         if (isToolResult) {
@@ -2038,6 +2103,9 @@
 
                 // 获取头像图标
                 getAvatarIcon(message) {
+                    if (message.role === 'confirmation') {
+                        return 'fas fa-shield-alt text-white';
+                    }
                     if (message.role === 'user') {
                         const isToolResult = this.isToolResult(message);
                         if (isToolResult) {
@@ -2051,6 +2119,9 @@
 
                 // 获取消息发送者名称
                 getMessageSender(message) {
+                    if (message.role === 'confirmation') {
+                        return '安全确认';
+                    }
                     if (message.role === 'user') {
                         const isToolResult = this.isToolResult(message);
                         if (isToolResult) {
@@ -2063,6 +2134,11 @@
                 },
                 
                 getMessageContainerClass(message) {
+                    if (message.role === 'confirmation') {
+                        // 确认消息使用特殊的橙色背景
+                        return 'bg-orange-50 border border-orange-200';
+                    }
+                    
                     if (message.role === 'user') {
                         const isToolResult = this.isToolResult(message);
                         
@@ -2418,7 +2494,8 @@
                             
                             if (containsBlockElements) {
                                 // 对于包含块级元素的段落，保持原始格式，只替换单个换行为<br>
-                                return paragraph.replace(/\n/g, '<br>');
+                                //return paragraph.replace(/\n/g, '<br>');
+                                return paragraph;
                             } else {
                                 // 对于普通段落，清理多余空白但保持HTML标签完整
                                 const cleanParagraph = paragraph.replace(/\n\s+/g, '\n').replace(/\n/g, '<br>').trim();
@@ -2934,11 +3011,250 @@
                 
                 // 获取消息类型用于分组
                 getMessageType(message) {
+                    if (message.role === 'confirmation') {
+                        return 'confirmation';
+                    }
                     if (message.role === 'user') {
                         return this.isToolResult(message) ? 'tool_result' : 'user';
                     }
                     return 'assistant';
-                }
+                },
+
+                // 渲染确认消息
+                renderConfirmationMessage(message) {
+                    const info = message.confirmation_info;
+                    if (!info) {
+                        return '<div class="text-red-500">确认信息缺失</div>';
+                    }
+
+                    const riskColorClass = {
+                        'low': 'border-green-200 bg-green-50',
+                        'medium': 'border-yellow-200 bg-yellow-50', 
+                        'high': 'border-red-200 bg-red-50'
+                    }[info.risk_level] || 'border-yellow-200 bg-yellow-50';
+
+                    const riskTextClass = {
+                        'low': 'text-green-800',
+                        'medium': 'text-yellow-800',
+                        'high': 'text-red-800'
+                    }[info.risk_level] || 'text-yellow-800';
+
+                    const riskLevelText = {
+                        'low': '低风险',
+                        'medium': '中等风险', 
+                        'high': '高风险'
+                    }[info.risk_level] || '中等风险';
+
+                    let parametersHtml = '';
+                    if (info.parameters && Object.keys(info.parameters).length > 0) {
+                        parametersHtml = '<div class="mt-3"><div class="text-sm font-medium text-gray-700 mb-2">操作参数:</div>';
+                        for (const [key, value] of Object.entries(info.parameters)) {
+                            const displayValue = typeof value === 'string' ? value : JSON.stringify(value);
+                            parametersHtml += `<div class="text-xs text-gray-600 mb-1"><span class="font-medium">${key}:</span> <span class="break-all">${displayValue}</span></div>`;
+                        }
+                        parametersHtml += '</div>';
+                    }
+
+                    const confirmationHtml = `
+                        <div class="confirmation-message border-2 ${riskColorClass} rounded-lg p-4 max-w-none" data-message-id="${message.id}">
+                            <div class="flex items-center mb-3">
+                                <i class="fas fa-shield-alt text-orange-600 mr-2"></i>
+                                <h4 class="font-bold text-gray-800">安全确认请求</h4>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span class="font-medium text-gray-600">工具名称:</span>
+                                        <span class="ml-2 text-gray-800">${info.tool_name}</span>
+                                    </div>
+                                    <div>
+                                        <span class="font-medium text-gray-600">风险等级:</span>
+                                        <span class="ml-2 px-2 py-1 rounded text-xs font-medium ${riskTextClass} bg-opacity-50">${riskLevelText}</span>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <span class="font-medium text-gray-600 text-sm">描述:</span>
+                                    <div class="mt-1 text-gray-800">${info.description}</div>
+                                </div>
+                                
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-exclamation-triangle text-orange-500"></i>
+                                    <span class="text-sm ${riskTextClass}">${info.risk_message}</span>
+                                </div>
+                                
+                                ${parametersHtml}
+                            </div>
+                            
+                            <div class="mt-4 grid grid-cols-2 gap-2">
+                                <button onclick="window.handleInlineConfirmation('${info.confirmation_id}', 'deny', false, ${message.id})" 
+                                        class="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-100 transition-colors">
+                                    <i class="fas fa-times mr-1"></i>拒绝本次
+                                </button>
+                                <button onclick="window.handleInlineConfirmation('${info.confirmation_id}', 'allow', false, ${message.id})" 
+                                        class="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                                    <i class="fas fa-check mr-1"></i>同意本次
+                                </button>
+                                <button onclick="window.handleInlineConfirmation('${info.confirmation_id}', 'deny', true, ${message.id})" 
+                                        class="px-3 py-2 text-sm border border-red-300 text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors">
+                                    <i class="fas fa-ban mr-1"></i>总是拒绝
+                                </button>
+                                <button onclick="window.handleInlineConfirmation('${info.confirmation_id}', 'allow', true, ${message.id})" 
+                                        class="px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors">
+                                    <i class="fas fa-check-double mr-1"></i>总是同意
+                                </button>
+                            </div>
+                            
+                            <div class="mt-2 text-xs text-gray-500 text-center">
+                                选择"总是同意"或"总是拒绝"将记住您的选择，以后自动应用
+                            </div>
+                        </div>
+                    `;
+                    
+                    return confirmationHtml;
+                },
+
+                // 用户确认对话框相关方法（已移除，现在使用内联确认）
+
+                // 处理内联确认选择
+                async handleInlineConfirmation(confirmationId, choice, remember, messageId) {
+                    try {
+                        // 找到对应的确认消息
+                        const confirmationMessage = this.messages.find(msg => msg.id === messageId);
+                        if (!confirmationMessage || !confirmationMessage.pendingChatData) {
+                            console.error('找不到确认消息或待处理的聊天数据');
+                            return;
+                        }
+
+                        // 禁用按钮，显示处理中状态
+                        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                        if (messageElement) {
+                            const buttons = messageElement.querySelectorAll('button');
+                            buttons.forEach(btn => {
+                                btn.disabled = true;
+                                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                            });
+                        }
+
+                        // 直接调用继续聊天接口，它会处理确认响应
+                        console.log('🚀 [确认DEBUG] 发送继续聊天请求:', {
+                            confirmation_id: confirmationId,
+                            choice: choice,
+                            remember_choice: remember,
+                            message: confirmationMessage.pendingChatData.message,
+                            session_id: confirmationMessage.pendingChatData.session_id,
+                            tools: confirmationMessage.pendingChatData.tools
+                        });
+                        
+                        const continueResponse = await fetch('/chat/continue', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                confirmation_id: confirmationId,
+                                choice: choice,
+                                remember_choice: remember,
+                                message: confirmationMessage.pendingChatData.message,
+                                session_id: confirmationMessage.pendingChatData.session_id,
+                                tools: confirmationMessage.pendingChatData.tools
+                            })
+                        });
+                        
+                        console.log('📡 [确认DEBUG] 继续聊天响应状态:', continueResponse.status, continueResponse.statusText);
+
+                        if (!continueResponse.ok) {
+                            throw new Error(`继续聊天失败: ${continueResponse.status}`);
+                        }
+
+                        // 移除确认消息
+                        this.messages = this.messages.filter(msg => msg.id !== messageId);
+
+                        // 开始流式接收响应
+                        this.isLoading = true;
+                        this.showExecutionProgress = true;
+                        this.executionSteps = [];
+
+                        // 添加AI响应消息
+                        const aiMessage = {
+                            id: Date.now(),
+                            role: 'assistant',
+                            content: '',
+                            timestamp: new Date().toISOString(),
+                            steps: []
+                        };
+                        this.messages.push(aiMessage);
+                        console.log('🤖 [确认DEBUG] 创建AI响应消息:', aiMessage.id);
+
+                        // 使用与原始流式处理相同的逻辑
+                        const reader = continueResponse.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+                        let shouldStopStream = false;
+                        
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done || shouldStopStream) break;
+                            
+                            buffer += decoder.decode(value, { stream: true });
+                            
+                            // 简化SSE处理 - 按行处理
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop() || ''; // 保留不完整的行
+                            
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const data = JSON.parse(line.substring(6));
+                                        const result = await this.handleSSEEvent(data, aiMessage);
+                                        
+                                        // 如果handleSSEEvent返回false，停止流式处理
+                                        if (result === false) {
+                                            shouldStopStream = true;
+                                            break;
+                                        }
+                                        
+                                        // 强制更新界面并滚动到底部
+                                        this.scrollToBottom();
+                                    } catch (e) {
+                                        console.error('解析SSE数据失败:', e, line);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 确认后的流式处理不需要重新加载会话，因为所有数据都已通过SSE接收
+                        // 重新加载会话会覆盖已显示的工具执行结果，导致前端显示中断
+                        
+                        // 流式响应完成，重置loading状态
+                        this.isLoading = false;
+                        
+                        // 流式完成后，立即进行完整渲染
+                        this.$nextTick(() => {
+                            this.renderMath();
+                            setTimeout(() => {
+                                window.renderMermaidCharts();
+                            }, 200);
+                        });
+
+                    } catch (error) {
+                        console.error('处理确认选择失败:', error);
+                        alert('处理确认选择失败: ' + error.message);
+                        
+                        // 恢复按钮状态
+                        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                        if (messageElement) {
+                            const buttons = messageElement.querySelectorAll('button');
+                            buttons.forEach(btn => {
+                                btn.disabled = false;
+                                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                            });
+                        }
+                    }
+                },
+
+                // 旧的handleConfirmationChoice方法已移除，现在使用handleInlineConfirmation
             }
         }
         
@@ -2969,6 +3285,25 @@
             } else {
                 console.error('未找到thinking元素:', thinkingId);
                 console.error('页面中所有thinking元素:', document.querySelectorAll('.thinking-section'));
+            }
+        };
+
+        // 内联确认处理函数 - 全局注册
+        window.handleInlineConfirmation = function(confirmationId, choice, remember, messageId) {
+            console.log('🔧 [全局函数] handleInlineConfirmation 被调用:', { confirmationId, choice, remember, messageId });
+            
+            // 获取Alpine.js应用实例
+            const appElement = document.querySelector('[x-data]');
+            if (appElement && appElement._x_dataStack && appElement._x_dataStack[0]) {
+                const appData = appElement._x_dataStack[0];
+                if (appData.handleInlineConfirmation) {
+                    console.log('🔧 [全局函数] 调用Alpine.js中的handleInlineConfirmation方法');
+                    appData.handleInlineConfirmation(confirmationId, choice, remember, messageId);
+                } else {
+                    console.error('❌ [全局函数] Alpine.js应用中未找到handleInlineConfirmation方法');
+                }
+            } else {
+                console.error('❌ [全局函数] 未找到Alpine.js应用实例');
             }
         };
 
@@ -3024,6 +3359,23 @@
                     iconId: icon ? icon.id : 'N/A'
                 });
             });
+        };
+
+        // 全局函数：处理内联确认选择
+        window.handleInlineConfirmation = async function(confirmationId, choice, remember, messageId) {
+            const app = window.chatApp;
+            if (app && app.handleInlineConfirmation) {
+                await app.handleInlineConfirmation(confirmationId, choice, remember, messageId);
+            }
+        };
+        
+        // 全局函数：渲染确认消息
+        window.renderConfirmationMessage = function(message) {
+            const app = window.chatApp;
+            if (app && app.renderConfirmationMessage) {
+                return app.renderConfirmationMessage(message);
+            }
+            return '<div class="text-red-500">确认消息渲染失败</div>';
         };
         
         // Mermaid 相关功能
@@ -3368,4 +3720,5 @@
         };
     </script>
 </body>
+</html> 
 </html> 

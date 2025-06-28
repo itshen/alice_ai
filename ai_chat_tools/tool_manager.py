@@ -423,9 +423,13 @@ def my_tool(param: str) -> str:
         
         # 检查用户确认
         try:
-            from .user_confirmation import user_confirmation_manager
+            from .user_confirmation import user_confirmation_manager, UserConfirmationRequired
             
-            if not user_confirmation_manager.request_confirmation(name, tool, parameters):
+            # 注意：request_confirmation 在Web模式下会抛出 UserConfirmationRequired 异常
+            # 在命令行模式下会返回 True/False
+            confirmation_result = user_confirmation_manager.request_confirmation(name, tool, parameters)
+            
+            if not confirmation_result:
                 return ToolResult(
                     tool_name=name,
                     parameters=parameters,
@@ -435,6 +439,9 @@ def my_tool(param: str) -> str:
                     error_message="用户拒绝执行此操作",
                     execution_time=time.time() - start_time
                 )
+        except UserConfirmationRequired:
+            # 在Web模式下，直接重新抛出异常，让上层处理
+            raise
         except ImportError:
             # 如果确认管理器不可用，继续执行
             pass
